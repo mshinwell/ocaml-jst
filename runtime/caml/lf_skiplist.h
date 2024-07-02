@@ -48,11 +48,7 @@ struct lf_skipcell {
   uintnat top_level;
   void *stat_block;
   struct lf_skipcell *_Atomic garbage_next;
-#if (__STDC_VERSION__ >= 199901L)
-  struct lf_skipcell *_Atomic forward[]; /* variable-length array */
-#else
-  struct lf_skipcell *_Atomic forward[1]; /* variable-length array */
-#endif
+  struct lf_skipcell *_Atomic forward[]; /* flexible array member */
 };
 
 /* Initialize a skip list */
@@ -73,7 +69,7 @@ extern int caml_lf_skiplist_find(struct lf_skiplist *sk, uintnat key,
 extern int caml_lf_skiplist_find_below(struct lf_skiplist *sk, uintnat k,
                                        /*out*/ uintnat *key,
                                        /*out*/ uintnat *data);
-/* Insertion in a skip list. [key] must be between 1 and UINTNAT_MAX-1.
+/* Insertion in a skip list. [key] must be between 1 and CAML_UINTNAT_MAX-1.
    If [key] was already there, change the associated data and return 1.
    If [key] was not there, insert new [key, data] binding and return 0. */
 extern int caml_lf_skiplist_insert(struct lf_skiplist *sk, uintnat key,

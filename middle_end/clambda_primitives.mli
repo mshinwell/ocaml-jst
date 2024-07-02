@@ -158,7 +158,8 @@ type primitive =
   | Pget_header of alloc_mode
   (* Fetch domain-local state *)
   | Pdls_get
-
+  (* Poll for runtime actions *)
+  | Ppoll
 
 and integer_comparison = Lambda.integer_comparison =
     Ceq | Cne | Clt | Cgt | Cle | Cge
@@ -235,7 +236,7 @@ and boxed_vector = Lambda.boxed_vector =
 
 and bigarray_kind = Lambda.bigarray_kind =
     Pbigarray_unknown
-  | Pbigarray_float32 | Pbigarray_float64
+  | Pbigarray_float16 | Pbigarray_float32 | Pbigarray_float64
   | Pbigarray_sint8 | Pbigarray_uint8
   | Pbigarray_sint16 | Pbigarray_uint16
   | Pbigarray_int32 | Pbigarray_int64

@@ -1,4 +1,5 @@
 (* TEST
+<<<<<<< HEAD
  include unix;
  libunix;
  {
@@ -6,6 +7,26 @@
  }{
    native;
  }
+||||||| 121bedcfd2
+include unix
+* libunix
+** bytecode
+** native
+=======
+ include unix;
+ libunix;
+ (*
+   Disabled on MacOS amd64 with TSan due to a
+   possible infinite signal loop with TSan under MacOS
+   see https://github.com/llvm/llvm-project/issues/63824
+ *)
+ not_macos_amd64_tsan;
+ {
+   bytecode;
+ }{
+   native;
+ }
+>>>>>>> ocaml/trunk
 *)
 
 let () =

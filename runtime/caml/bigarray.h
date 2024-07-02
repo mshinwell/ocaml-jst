@@ -21,15 +21,8 @@
 
 typedef signed char caml_ba_int8;
 typedef unsigned char caml_ba_uint8;
-#if defined(HAS_STDINT_H)
 typedef int16_t caml_ba_int16;
 typedef uint16_t caml_ba_uint16;
-#elif SIZEOF_SHORT == 2
-typedef short caml_ba_int16;
-typedef unsigned short caml_ba_uint16;
-#else
-#error "No 16-bit integer type available"
-#endif
 
 #define CAML_BA_MAX_NUM_DIMS 16
 
@@ -43,10 +36,12 @@ enum caml_ba_kind {
   CAML_BA_INT32,               /* Signed 32-bit integers */
   CAML_BA_INT64,               /* Signed 64-bit integers */
   CAML_BA_CAML_INT,            /* OCaml-style integers (signed 31 or 63 bits) */
-  CAML_BA_NATIVE_INT,       /* Platform-native long integers (32 or 64 bits) */
+  CAML_BA_NATIVE_INT,        /* Platform-native long integers (32 or 64 bits) */
   CAML_BA_COMPLEX32,           /* Single-precision complex */
   CAML_BA_COMPLEX64,           /* Double-precision complex */
   CAML_BA_CHAR,                /* Characters */
+  CAML_BA_FLOAT16,             /* Half-precision floats */
+  CAML_BA_FIRST_UNIMPLEMENTED_KIND,
   CAML_BA_KIND_MASK = 0xFF     /* Mask for kind in flags field */
 };
 
@@ -72,6 +67,10 @@ enum caml_ba_managed {
   CAML_BA_MANAGED_MASK = 0x600 /* Mask for "managed" bits in flags field */
 };
 
+enum caml_ba_subarray {
+  CAML_BA_SUBARRAY = 0x800     /* Data is shared with another bigarray */
+};
+
 struct caml_ba_proxy {
   atomic_uintnat refcount;      /* Reference count */
   void * data;                  /* Pointer to base of actual data */
@@ -83,20 +82,11 @@ struct caml_ba_array {
   intnat num_dims;            /* Number of dimensions */
   intnat flags;  /* Kind of element array + memory layout + allocation status */
   struct caml_ba_proxy * proxy; /* The proxy for sub-arrays, or NULL */
-  /* PR#5516: use C99's flexible array types if possible */
-#if (__STDC_VERSION__ >= 199901L)
   intnat dim[]  /*[num_dims]*/; /* Size in each dimension */
-#else
-  intnat dim[1] /*[num_dims]*/; /* Size in each dimension */
-#endif
 };
 
-/* Size of struct caml_ba_array, in bytes, without dummy first dimension */
-#if (__STDC_VERSION__ >= 199901L)
+/* Size of struct caml_ba_array, in bytes, without [dim] array */
 #define SIZEOF_BA_ARRAY sizeof(struct caml_ba_array)
-#else
-#define SIZEOF_BA_ARRAY (sizeof(struct caml_ba_array) - sizeof(intnat))
-#endif
 
 #define Caml_ba_array_val(v) ((struct caml_ba_array *) Data_custom_val(v))
 

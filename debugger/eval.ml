@@ -45,26 +45,55 @@ let get_global_or_predef id =
   with Symtable.Error _ -> raise(Error(Unbound_identifier id))
 
 let rec address path event = function
+<<<<<<< HEAD
   | Env.Aunit cu ->
       get_global_or_predef (cu |> Compilation_unit.to_global_ident_for_bytecode)
   | Env.Alocal id ->
       if Ident.is_predef id then get_global_or_predef id
       else
+||||||| 121bedcfd2
+  | Env.Aident id ->
+      if Ident.global id then
+        try
+          Debugcom.Remote_value.global (Symtable.get_global_position id)
+        with Symtable.Error _ -> raise(Error(Unbound_identifier id))
+      else
+=======
+  | Env.Aident id ->
+    begin
+      match Symtable.Global.of_ident id with
+        | Some global ->
+          begin
+            try Debugcom.Remote_value.global (Symtable.get_global_position
+              global)
+            with Symtable.Error _ -> raise(Error(Unbound_identifier id))
+          end
+      | None ->
+        let not_found () =
+          raise(Error(Unbound_identifier id))
+        in
+>>>>>>> ocaml/trunk
         begin match event with
           Some {ev_ev = ev} ->
             begin try
               let pos = Ident.find_same id ev.ev_compenv.ce_stack in
               Debugcom.Remote_value.local (ev.ev_stacksize - pos)
             with Not_found ->
-            try
-              let pos = Ident.find_same id ev.ev_compenv.ce_heap in
-              Debugcom.Remote_value.from_environment pos
-            with Not_found ->
-              raise(Error(Unbound_identifier id))
+            match ev.ev_compenv.ce_closure with
+            | Not_in_closure -> not_found ()
+            | In_closure { entries; env_pos } ->
+              match Ident.find_same id entries with
+              | Free_variable pos ->
+                Debugcom.Remote_value.from_environment (pos - env_pos)
+              | Function _pos ->
+                (* Recursive functions seem to be unhandled *)
+                not_found ()
+              | exception Not_found -> not_found ()
             end
         | None ->
-            raise(Error(Unbound_identifier id))
+            not_found ()
         end
+    end
   | Env.Adot(root, pos) ->
       let v = address path event root in
       if not (Debugcom.Remote_value.is_block v) then
@@ -94,8 +123,7 @@ let rec expression event env = function
             | _ ->
                 value_path event env p
           in
-          let typ = Ctype.correct_levels valdesc.val_type in
-          v, typ
+          v, valdesc.val_type
       | exception Not_found ->
           raise(Error(Unbound_long_identifier lid))
     end
@@ -178,24 +206,30 @@ and find_label lbl env ty path tydesc pos = function
 (* Error report *)
 
 open Format
+module Style = Misc.Style
+
+let as_inline_code pr = Format_doc.compat @@ Style.as_inline_code pr
+let inline_code = Format_doc.compat Style.inline_code
 
 let report_error ppf = function
   | Unbound_identifier id ->
-      fprintf ppf "@[Unbound identifier %s@]@." (Ident.name id)
+      fprintf ppf "@[Unbound identifier %a@]@."
+        inline_code (Ident.name id)
   | Not_initialized_yet path ->
       fprintf ppf
         "@[The module path %a is not yet initialized.@ \
            Please run program forward@ \
            until its initialization code is executed.@]@."
-      Printtyp.path path
+      (as_inline_code Printtyp.path) path
   | Unbound_long_identifier lid ->
-      fprintf ppf "@[Unbound identifier %a@]@." Printtyp.longident lid
+      fprintf ppf "@[Unbound identifier %a@]@."
+        (as_inline_code Printtyp.longident) lid
   | Unknown_name n ->
       fprintf ppf "@[Unknown value name $%i@]@." n
   | Tuple_index(ty, len, pos) ->
       fprintf ppf
         "@[Cannot extract field number %i from a %i-tuple of type@ %a@]@."
-        pos len Printtyp.type_expr ty
+        pos len (as_inline_code Printtyp.type_expr) ty
   | Array_index(len, pos) ->
       fprintf ppf
         "@[Cannot extract element number %i from an array of length %i@]@."
@@ -212,13 +246,15 @@ let report_error ppf = function
   | Wrong_item_type(ty, pos) ->
       fprintf ppf
         "@[Cannot extract item number %i from a value of type@ %a@]@."
-        pos Printtyp.type_expr ty
+        pos (as_inline_code Printtyp.type_expr) ty
   | Wrong_label(ty, lbl) ->
       fprintf ppf
-        "@[The record type@ %a@ has no label named %s@]@."
-        Printtyp.type_expr ty lbl
+        "@[The record type@ %a@ has no label named %a@]@."
+        (as_inline_code Printtyp.type_expr) ty
+        inline_code lbl
   | Not_a_record ty ->
       fprintf ppf
-        "@[The type@ %a@ is not a record type@]@." Printtyp.type_expr ty
+        "@[The type@ %a@ is not a record type@]@."
+        (as_inline_code Printtyp.type_expr) ty
   | No_result ->
       fprintf ppf "@[No result available at current program event@]@."

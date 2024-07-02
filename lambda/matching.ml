@@ -93,8 +93,7 @@ open Types
 open Typedtree
 open Lambda
 open Parmatch
-open Printf
-open Printpat
+open Printpat.Compat
 
 module Scoped_location = Debuginfo.Scoped_location
 
@@ -105,6 +104,7 @@ exception Error of Location.t * error
 
 let dbg = false
 
+<<<<<<< HEAD
 let jkind_layout_default_to_value_and_check_not_void loc jkind =
   let const = Jkind.default_to_value_and_get jkind in
   let layout = Jkind.Const.get_layout const in
@@ -113,6 +113,18 @@ let jkind_layout_default_to_value_and_check_not_void loc jkind =
   | _ -> ()
 ;;
 
+||||||| 121bedcfd2
+=======
+let debugf fmt =
+  if dbg
+  then Format.eprintf fmt
+  else Format.ifprintf Format.err_formatter fmt
+
+let pp_partial ppf = function
+  | Total -> Format.fprintf ppf "Total"
+  | Partial -> Format.fprintf ppf "Partial"
+
+>>>>>>> ocaml/trunk
 (*
    Compatibility predicate that considers potential rebindings of constructors
    of an extension type.
@@ -132,15 +144,12 @@ and may_compats = MayCompat.compats
 (*
    Many functions on the various data structures of the algorithm :
      - Pattern matrices.
-     - Default environments: mapping from matrices to exit numbers.
-     - Contexts:  matrices whose column are partitioned into
-       left and right.
+     - Default environments: mapping from exit numbers to matrices.
+     - Contexts: matrices whose column are partitioned into
+       left (prefix of the input that we have already matched) and
+       right (what remains to be matched).
      - Jump summaries: mapping from exit numbers to contexts
 *)
-
-let string_of_lam lam =
-  Printlambda.lambda Format.str_formatter lam;
-  Format.flush_str_formatter ()
 
 let all_record_args lbls =
   match lbls with
@@ -221,8 +230,16 @@ end = struct
     | Tpat_any
     | Tpat_var _ ->
         p
+<<<<<<< HEAD
     | Tpat_alias (q, id, s, uid, mode) ->
         { p with pat_desc = Tpat_alias (simpl_under_orpat q, id, s, uid, mode) }
+||||||| 121bedcfd2
+    | Tpat_alias (q, id, s) ->
+        { p with pat_desc = Tpat_alias (simpl_under_orpat q, id, s) }
+=======
+    | Tpat_alias (q, id, s, uid) ->
+        { p with pat_desc = Tpat_alias (simpl_under_orpat q, id, s, uid) }
+>>>>>>> ocaml/trunk
     | Tpat_or (p1, p2, o) ->
         let p1, p2 = (simpl_under_orpat p1, simpl_under_orpat p2) in
         if le_pat p1 p2 then
@@ -245,9 +262,17 @@ end = struct
       in
       match p.pat_desc with
       | `Any -> stop p `Any
+<<<<<<< HEAD
       | `Var (id, s, uid, mode) ->
         continue p (`Alias (Patterns.omega, id, s, uid, mode))
       | `Alias (p, id, _, _, _) ->
+||||||| 121bedcfd2
+      | `Var (id, s) -> continue p (`Alias (Patterns.omega, id, s))
+      | `Alias (p, id, _) ->
+=======
+      | `Var (id, s, uid) -> continue p (`Alias (Patterns.omega, id, s, uid))
+      | `Alias (p, id, _, _) ->
+>>>>>>> ocaml/trunk
           aux
             ( (General.view p, patl),
               bind_alias p id ~arg ~arg_sort ~action )
@@ -343,10 +368,24 @@ end = struct
       match p.pat_desc with
       | `Or (p1, p2, _) ->
           split_explode p1 aliases (split_explode p2 aliases rem)
+<<<<<<< HEAD
       | `Alias (p, id, _, _, _) -> split_explode p (id :: aliases) rem
       | `Var (id, str, uid, mode) ->
+||||||| 121bedcfd2
+      | `Alias (p, id, _) -> split_explode p (id :: aliases) rem
+      | `Var (id, str) ->
+=======
+      | `Alias (p, id, _, _) -> split_explode p (id :: aliases) rem
+      | `Var (id, str, uid) ->
+>>>>>>> ocaml/trunk
           explode
+<<<<<<< HEAD
             { p with pat_desc = `Alias (Patterns.omega, id, str, uid, mode) }
+||||||| 121bedcfd2
+            { p with pat_desc = `Alias (Patterns.omega, id, str) }
+=======
+            { p with pat_desc = `Alias (Patterns.omega, id, str, uid) }
+>>>>>>> ocaml/trunk
             aliases rem
       | #view as view ->
           (* We are doing two things here:
@@ -489,7 +528,7 @@ module Context : sig
 
   val start : int -> t
 
-  val eprintf : t -> unit
+  val pp : Format.formatter -> t -> unit
 
   val specialize : Patterns.Head.t -> t -> t
 
@@ -501,6 +540,8 @@ module Context : sig
 
   val lub : pattern -> t -> t
 
+  val erase_first_col : t -> t
+
   val matches : t -> matrix -> bool
 
   val combine : t -> t
@@ -511,9 +552,16 @@ module Context : sig
 end = struct
   module Row = struct
     type t = { left : pattern list; right : pattern list }
+    (* Static knowledge on a frontier of nodes (subtrees) in the matched values.
+       Left: what we know about what is above us, towards the root.
+       Right: what we know about whas is below us, towards the leaves. *)
 
-    let eprintf { left; right } =
-      Format.eprintf "LEFT:%a RIGHT:%a\n" pretty_line left pretty_line right
+
+    let pp ppf { left; right } =
+      Format.fprintf ppf
+        "@[LEFT@ %aRIGHT@ %a@]"
+        pretty_line left
+        pretty_line right
 
     let le c1 c2 = le_pats c1.left c2.left && le_pats c1.right c2.right
 
@@ -527,6 +575,11 @@ end = struct
       | _ :: xs -> { left = Patterns.omega :: left; right = xs }
       | _ -> assert false
 
+    let erase_first_col { left; right } =
+      match right with
+      | _ :: right -> { left; right = Patterns.omega :: right }
+      | _ -> assert false
+
     let rshift { left; right } =
       match left with
       | p :: ps -> { left = ps; right = p :: right }
@@ -536,16 +589,19 @@ end = struct
       let shifted, left = rev_split_at n left in
       { left; right = shifted @ right }
 
-    (** Recombination of contexts (eg: (_,_)::p1::p2::rem ->  (p1,p2)::rem)
-  All mutable fields are replaced by '_', since side-effects in
-  guards can alter these fields *)
+    (** Recombination of contexts.
+        For example:
+          { (_,_)::left; p1::p2::right } -> { left; (p1,p2)::right }
+    *)
     let combine { left; right } =
       match left with
-      | p :: ps -> { left = ps; right = set_args_erase_mutable p right }
+      | p :: ps -> { left = ps; right = set_args p right }
       | _ -> assert false
   end
 
   type t = Row.t list
+  (* A union/disjunction of possible context "rows". What we know is that
+     the matching situation is described by one of the rows. *)
 
   let empty = []
 
@@ -555,7 +611,9 @@ end = struct
     | [] -> true
     | _ -> false
 
-  let eprintf ctx = List.iter Row.eprintf ctx
+  let pp ppf ctx =
+    Format.pp_print_list ~pp_sep:Format.pp_print_cut
+      Row.pp ppf ctx
 
   let lshift ctx =
     if List.length ctx < !Clflags.match_context_rows then
@@ -565,6 +623,8 @@ end = struct
       get_mins Row.le (List.map Row.lforget ctx)
 
   let rshift ctx = List.map Row.rshift ctx
+
+  let erase_first_col ctx = List.map Row.erase_first_col ctx
 
   let rshift_num n ctx = List.map (Row.rshift_num n) ctx
 
@@ -584,7 +644,13 @@ end = struct
           match p.pat_desc with
           | `Or (p1, p2, _) ->
               filter_rec ((left, p1, right) :: (left, p2, right) :: rem)
+<<<<<<< HEAD
           | `Alias (p, _, _, _, _) -> filter_rec ((left, p, right) :: rem)
+||||||| 121bedcfd2
+          | `Alias (p, _, _) -> filter_rec ((left, p, right) :: rem)
+=======
+          | `Alias (p, _, _, _) -> filter_rec ((left, p, right) :: rem)
+>>>>>>> ocaml/trunk
           | `Var _ -> filter_rec ((left, Patterns.omega, right) :: rem)
           | #Simple.view as view -> (
               let p = { p with pat_desc = view } in
@@ -634,7 +700,13 @@ let rec flatten_pat_line size p k =
   | Tpat_tuple args -> (List.map snd args) :: k
   | Tpat_or (p1, p2, _) ->
       flatten_pat_line size p1 (flatten_pat_line size p2 k)
+<<<<<<< HEAD
   | Tpat_alias (p, _, _, _, _) ->
+||||||| 121bedcfd2
+  | Tpat_alias (p, _, _) ->
+=======
+  | Tpat_alias (p, _, _, _) ->
+>>>>>>> ocaml/trunk
       (* Note: we are only called from flatten_matrix,
          which is itself only ever used in places
          where variables do not matter (default environments,
@@ -651,9 +723,11 @@ let flatten_matrix size pss =
     pss []
 
 (** A default environment (referred to as "reachable trap handlers" in the
-    paper), is an ordered list of [matrix * raise_num] pairs, and is used to
-    decide where to jump next if none of the rows in a given matrix match the
-    input.
+    paper) is an ordered list of [raise_num * matrix] pairs, mapping reachable
+    exit numbers to the matrices of the corresponding exit handler.
+
+    It is used to decide where to jump next if none of the rows in a given
+    matrix match the input.
 
     In such situations, one thing you can do is to jump to the first (leftmost)
     [raise_num] in that list (by doing a raise to the static-cach handler number
@@ -661,21 +735,29 @@ let flatten_matrix size pss =
     either, it will do the same thing, etc.
     This is what [mk_failaction_neg] (and its callers) does.
 
-    A more sophisticated alternative is to use what you know about the input
-    (what you might already have matched) and the current pm (what you know you
-    can't match) to directly jump to a pm that might match it instead of the
-    next one; that is why we don't just keep [raise_num]s but also the
-    associated matrices.
-    [mk_failaction_pos] does (a slightly more sophisticated version of) this.
+    But in fact there is no point in jumping to a matrix if you can tell
+    statically that it cannot match your current input. Default environments
+    provide static information on what happens "after" each jump, which we use
+    to optimize our exit choices.
+    This is what [mk_failaction_pos] (and its callers) does.
+
+    The default environment also carries a special [final_exit] exit
+    number, which is used for values that are not matched by any
+    clauses of the matching being compiled. The final exit is treated
+    as a free variable, it is not bound in the [raise_num * matrix]
+    list. When [Default_environment.pop] returns [None], there are no
+    exit handlers to matching clauses left, but
+    (for non-exhaustive matches) inputs could still jump to the final
+    exit.
 *)
 module Default_environment : sig
   type t
 
-  val is_empty : t -> bool
+  val pop : t -> ((int * matrix) * t) option
 
-  val pop : t -> ((matrix * int) * t) option
+  val empty : final_exit:int -> t
 
-  val empty : t
+  val raise_final_exit : t -> lambda
 
   val cons : matrix -> int -> t -> t
 
@@ -687,23 +769,28 @@ module Default_environment : sig
 
   val flatten : int -> t -> t
 
-  val pp : t -> unit
+  val pp : Format.formatter -> t -> unit
+
+  val pp_section : Format.formatter -> t -> unit
 end = struct
-  type t = (matrix * int) list
+  type t = {
+    env: (int * matrix) list;
+    final_exit: int;
+  }
   (** All matrices in the list should have the same arity -- their rows should
       have the same number of columns -- as it should match the arity of the
       current scrutiny vector. *)
 
-  let empty = []
+  let empty ~final_exit = { env = []; final_exit; }
 
-  let is_empty = function
-    | [] -> true
-    | _ -> false
+  let raise_final_exit { final_exit; _ } =
+    Lstaticraise (final_exit, [])
 
   let cons matrix raise_num default =
     match matrix with
     | [] -> default
-    | _ -> (matrix, raise_num) :: default
+    | _ ->
+        { default with env = (raise_num, matrix) :: default.env }
 
   let specialize_matrix arity matcher pss =
     let rec filter_rec = function
@@ -711,7 +798,13 @@ end = struct
       | (p, ps) :: rem -> (
           let p = General.view p in
           match p.pat_desc with
+<<<<<<< HEAD
           | `Alias (p, _, _, _, _) -> filter_rec ((p, ps) :: rem)
+||||||| 121bedcfd2
+          | `Alias (p, _, _) -> filter_rec ((p, ps) :: rem)
+=======
+          | `Alias (p, _, _, _) -> filter_rec ((p, ps) :: rem)
+>>>>>>> ocaml/trunk
           | `Var _ -> filter_rec ((Patterns.omega, ps) :: rem)
           | `Or (p1, p2, _) -> filter_rec_or p1 p2 ps rem
           | #Simple.view as view -> (
@@ -789,11 +882,11 @@ end = struct
     in
     filter_rec pss
 
-  let specialize_ arity matcher env =
+  let specialize_ arity matcher def =
     let rec make_rec = function
       | [] -> []
-      | (([] :: _), i) :: _ -> [ ([ [] ], i) ]
-      | (pss, i) :: rem -> (
+      | (i, ([] :: _)) :: _ -> [ (i, [ [] ]) ]
+      | (i, pss) :: rem -> (
           (* we already handled the empty-row case
              so we know that all rows in pss are non-empty *)
           let non_empty = function
@@ -803,11 +896,11 @@ end = struct
           let pss = List.map non_empty pss in
           match specialize_matrix arity matcher pss with
           | [] -> make_rec rem
-          | [] :: _ -> [ ([ [] ], i) ]
-          | pss -> (pss, i) :: make_rec rem
+          | [] :: _ -> [ (i, [ [] ]) ]
+          | pss -> (i, pss) :: make_rec rem
         )
     in
-    make_rec env
+    { def with env = make_rec def.env }
 
   let specialize head def =
     specialize_ (Patterns.Head.arity head) (matcher head) def
@@ -823,27 +916,64 @@ end = struct
     in
     specialize_ 0 compat_matcher def
 
-  let pop = function
+  let pop def = match def.env with
     | [] -> None
-    | def :: defs -> Some (def, defs)
+    | i_mat :: rem -> Some (i_mat, { def with env = rem })
 
-  let pp def =
-    Format.eprintf "+++++ Defaults +++++\n";
-    List.iter
-      (fun (pss, i) -> Format.eprintf "Matrix for %d\n%a" i pretty_matrix pss)
-      def;
-    Format.eprintf "+++++++++++++++++++++\n"
+  let pp ppf def =
+    Format.fprintf ppf
+      "@[<v 2>Default environment:%a@]"
+      (fun ppf li ->
+         if li = [] then Format.fprintf ppf " empty"
+         else begin
+           Format.fprintf ppf "@,";
+           Format.pp_print_list ~pp_sep:Format.pp_print_cut
+             (fun ppf (i, pss) ->
+                Format.fprintf ppf
+                  "Matrix for %d:@,\
+                   %a"
+                  i
+                  pretty_matrix pss
+             ) ppf li
+         end
+      ) def.env
+
+  let pp_section ppf def =
+    if def.env = [] then ()
+    else Format.fprintf ppf "@,%a" pp def
 
   let flatten size def =
-    List.map (fun (pss, i) -> (flatten_matrix size pss, i)) def
+    { def with
+      env = List.map (fun (i, pss) -> (i, flatten_matrix size pss)) def.env;
+    }
 end
 
+(** For a given code fragment, we call "external" exits the exit numbers that
+    are raised within the code but not handled in the code fragment itself.
+
+    The jump summary of a code fragment is an ordered list of
+    [raise_num * Context.t] pairs, mapping all its external exit numbers to
+    context information valid for all its raise points within the code fragment.
+
+    Jump summaries also carry a [partial] information, that carries
+    information on whether the "final exit" of the default environment
+    is used -- whether any values will jump to it, and whether it
+    occurs in the generated code. If [partial] is [Total], then the
+    [final_exit] is not used in the generated code. (A reason to
+    special-case the final exit in this way is that we don't need to
+    track its context for matching code generation.)
+*)
 module Jumps : sig
   type t
 
-  val is_empty : t -> bool
+  val partial : t -> partial
 
-  val empty : t
+  val empty : partial -> t
+  (** [empty Total] is the jump summary of exhaustive matching code
+      that never fails. [empty Partial] is the jump summary of
+      matching code that does not exit into any handler of the default
+      environment, but may still use the final failure action in the
+      final exit. *)
 
   val singleton : int -> Context.t -> t
 
@@ -857,46 +987,65 @@ module Jumps : sig
 
   val remove : int -> t -> t
 
+  (** [extract exit jumps] returns the context at the given exit
+      and the rest of the jump summary. *)
   val extract : int -> t -> Context.t * t
 
-  val eprintf : t -> unit
+  val pp : Format.formatter -> t -> unit
+
+  val pp_section : Format.formatter -> t -> unit
 end = struct
-  type t = (int * Context.t) list
+  type t = {
+    env : (int * Context.t) list;
+    partial : partial;
+  }
 
-  let eprintf (env : t) =
-    List.iter
-      (fun (i, ctx) ->
-        Printf.eprintf "jump for %d\n" i;
-        Context.eprintf ctx)
-      env
+  let partial { partial = p; _ } = p
 
-  let rec extract i = function
+  let pp ppf ({ env; partial } : t) =
+    Format.fprintf ppf "@[<v 2>JUMPS:%t@]"
+      (fun ppf ->
+         if env = [] then
+           Format.fprintf ppf " empty (%a)"
+             pp_partial partial
+         else begin
+           Format.fprintf ppf " (%a)@," pp_partial partial;
+           Format.pp_print_list ~pp_sep:Format.pp_print_cut (fun ppf (i, ctx) ->
+             Format.fprintf ppf
+               "jump for %d@,\
+                %a"
+               i
+               Context.pp ctx
+           ) ppf env
+         end)
+
+  let pp_section ppf jumps =
+    Format.fprintf ppf "@,%a" pp jumps
+
+  let extract i jumps =
+    let rec extract i = function
     | [] -> (Context.empty, [])
-    | ((j, pss) as x) :: rem as all ->
+    | ((j, ctx) as x) :: rem as all ->
         if i = j then
-          (pss, rem)
+          (ctx, rem)
         else if j < i then
           (Context.empty, all)
         else
           let r, rem = extract i rem in
           (r, x :: rem)
+    in
+    let (ctx, rem) = extract i jumps.env in
+    (ctx, { jumps with env = rem })
 
-  let rec remove i = function
+  let remove i jumps =
+    let rec remove i = function
     | [] -> []
     | (j, _) :: rem when i = j -> rem
     | x :: rem -> x :: remove i rem
+    in
+    { jumps with env = remove i jumps.env }
 
-  let empty = []
-
-  and is_empty = function
-    | [] -> true
-    | _ -> false
-
-  let singleton i ctx =
-    if Context.is_empty ctx then
-      []
-    else
-      [ (i, ctx) ]
+  let empty partial = { env = []; partial; }
 
   let add i ctx jumps =
     let rec add = function
@@ -912,19 +1061,33 @@ end = struct
     if Context.is_empty ctx then
       jumps
     else
-      add jumps
+      { jumps with env = add jumps.env }
 
-  let rec union (env1 : t) env2 =
-    match (env1, env2) with
-    | [], _ -> env2
-    | _, [] -> env1
-    | ((i1, pss1) as x1) :: rem1, ((i2, pss2) as x2) :: rem2 ->
-        if i1 = i2 then
-          (i1, Context.union pss1 pss2) :: union rem1 rem2
-        else if i1 > i2 then
-          x1 :: union rem1 env2
-        else
-          x2 :: union env1 rem2
+  let singleton i ctx =
+    (* Total: a singleton only jumps to exit [i],
+       not to the final exit. *)
+    add i ctx (empty Total)
+
+  let union j1 j2 =
+    let rec union env1 env2 =
+      match (env1, env2) with
+      | [], _ -> env2
+      | _, [] -> env1
+      | ((i1, pss1) as x1) :: rem1, ((i2, pss2) as x2) :: rem2 ->
+          if i1 = i2 then
+            (i1, Context.union pss1 pss2) :: union rem1 rem2
+          else if i1 > i2 then
+            x1 :: union rem1 env2
+          else
+            x2 :: union env1 rem2
+    in
+    {
+      env = union j1.env j2.env;
+      partial = (match j1.partial, j2.partial with
+        | Total, Total -> Total
+        | Partial, _ | _, Partial -> Partial
+      );
+    }
 
   let rec merge = function
     | env1 :: env2 :: rem -> union env1 env2 :: merge rem
@@ -932,46 +1095,124 @@ end = struct
 
   let rec unions envs =
     match envs with
-    | [] -> []
+    | [] -> empty Total
     | [ env ] -> env
     | _ -> unions (merge envs)
 
-  let map f env = List.map (fun (i, pss) -> (i, f pss)) env
+  let map f jumps =
+    { jumps with
+      env = List.map (fun (i, pss) -> (i, f pss)) jumps.env;
+    }
 end
 
 (* Pattern matching before any compilation *)
 
-type 'row pattern_matching = {
+type ('args, 'row) pattern_matching = {
   mutable cases : 'row list;
+<<<<<<< HEAD
   args : (lambda * let_kind * Jkind.sort * layout) list;
       (** args are not just Ident.t in at least the following cases:
         - when matching the arguments of a constructor,
           direct field projections are used (make_field_args)
         - with lazy patterns args can be of the form [Lazy.force ...]
           (inline_lazy_force). *)
+||||||| 121bedcfd2
+  args : (lambda * let_kind) list;
+      (** args are not just Ident.t in at least the following cases:
+        - when matching the arguments of a constructor,
+          direct field projections are used (make_field_args)
+        - with lazy patterns args can be of the form [Lazy.force ...]
+          (inline_lazy_force). *)
+=======
+  args : 'args;
+>>>>>>> ocaml/trunk
   default : Default_environment.t
 }
+
+type 'a arg = {
+  arg : 'a;
+  binding_kind : let_kind;
+  mut : mutable_flag;
+  (** We track with a [mutable_flag] whether a mutable read was
+      performed to access the corresponding sub-value of the
+      scrutinee: an argument is [Mutable] if the path from the root of
+      the value to the argument contains a mutable field. More
+      precisely, a position is considered [Mutable] when accesses to
+      the same position in different branches of the pattern
+      matching -- outside the scope of the strict binding generated
+      for the mutable read -- may observe a different value. *)
+}
+
+type args = lambda arg list
+(** args are not just Ident.t in at least the following cases:
+    - when matching the arguments of a constructor,
+      direct field projections are used (make_field_args)
+    - with lazy patterns args can be of the form [Lazy.force ...]
+      (inline_lazy_force). *)
+
+type split_args = {
+  first : pure_arg arg;
+  rest : args;
+}
+(** [split_args] is a more restricted form of argument list, used
+    when argument in first position is about to be matched upon. *)
+
+and pure_arg =
+  | Var of Ident.t
+  | Tuple of lambda
+(** The first argument in [split_args] form has already been bound to
+    a variable or it is a tuple of variables in the weird
+    [do_for_multiple_match] case; in particular, it is a pure
+    expression. *)
+
+let arg_of_pure = function
+  | Var v -> Lvar v
+  | Tuple tup -> tup
 
 type handler = {
   provenance : matrix;
   exit : int;
+<<<<<<< HEAD
   vars : (Ident.t * Lambda.layout) list;
   pm : initial_clause pattern_matching
+||||||| 121bedcfd2
+  vars : (Ident.t * Lambda.value_kind) list;
+  pm : initial_clause pattern_matching
+=======
+  vars : (Ident.t * Lambda.value_kind) list;
+  pm : (args, initial_clause) pattern_matching
+>>>>>>> ocaml/trunk
 }
 
-type ('head_pat, 'matrix) pm_or_compiled = {
-  body : 'head_pat Non_empty_row.t clause pattern_matching;
+type ('args, 'head_pat, 'matrix) pm_or_compiled = {
+  body : ('args, 'head_pat Non_empty_row.t clause) pattern_matching;
   handlers : handler list;
   or_matrix : 'matrix
 }
+
+
+(* The composed mutability of two argument positions:
+   is x.f.g a mutable position of x, depending whether f and g are mutable?
+
+   Note that the following equations hold:
+   - compose_mut mut Immutable = mut
+   - compose_mut mut Mutable = Mutable
+   but we do *not* use them in the code of get_expr_args_* below. We prefer
+   to call [compose_mut] explicitly to make the logic more regular, make
+   it obvious that we thought about how this value should evolve (or not).
+*)
+let compose_mut m1 m2 =
+  match m1, m2 with
+  | Immutable, Immutable -> Immutable
+  | Mutable, _ | _, Mutable -> Mutable
 
 (* Pattern matching after application of both the or-pat rule and the
    mixture rule *)
 
 type pm_half_compiled =
-  | PmOr of (Simple.pattern, matrix) pm_or_compiled
+  | PmOr of (split_args, Simple.pattern, matrix) pm_or_compiled
   | PmVar of { inside : pm_half_compiled }
-  | Pm of Simple.clause pattern_matching
+  | Pm of (split_args, Simple.clause) pattern_matching
 
 (* Only used inside the various split functions, we only keep [me] when we're
    done splitting / precompiling. *)
@@ -990,42 +1231,71 @@ let erase_cases f cases =
 let erase_pm pm =
   { pm with cases = erase_cases General.erase pm.cases }
 
-let pretty_cases cases =
-  List.iter
-    (fun (ps, _l) ->
-      List.iter (fun p -> Format.eprintf " %a%!" top_pretty p) ps;
-      Format.eprintf "\n")
+let pretty_cases ppf cases =
+  Format.fprintf ppf "@[<v 2>  %a@]"
+    (Format.pp_print_list ~pp_sep:Format.pp_print_cut
+       (fun ppf (ps, _l) ->
+          Format.fprintf ppf "@[";
+          List.iter (fun p -> Format.fprintf ppf "%a@ " pretty_pat p) ps;
+          Format.fprintf ppf "@]";
+       ))
     cases
 
-let pretty_pm pm =
-  pretty_cases pm.cases;
-  if not (Default_environment.is_empty pm.default) then
-    Default_environment.pp pm.default
+let pretty_pm_ ~print_default ppf pm =
+  pretty_cases ppf pm.cases;
+  if print_default then
+    Default_environment.pp_section ppf pm.default
 
-let rec pretty_precompiled = function
+let rec pretty_precompiled_ ~print_default ppf = function
   | Pm pm ->
-      Format.eprintf "++++ PM ++++\n";
-      pretty_pm (erase_pm pm)
+      Format.fprintf ppf
+        "PM:@,\
+         %a"
+        (pretty_pm_ ~print_default) (erase_pm pm)
   | PmVar x ->
-      Format.eprintf "++++ VAR ++++\n";
-      pretty_precompiled x.inside
+      Format.fprintf ppf
+        "PM Var:@,\
+         %a"
+        (pretty_precompiled_ ~print_default) x.inside
   | PmOr x ->
-      Format.eprintf "++++ OR ++++\n";
-      pretty_pm (erase_pm x.body);
-      pretty_matrix Format.err_formatter x.or_matrix;
-      List.iter
-        (fun { exit = i; pm; _ } ->
-          eprintf "++ Handler %d ++\n" i;
-          pretty_pm pm)
-        x.handlers
+      let pretty_handlers ppf handlers =
+        List.iter (fun { exit = i; pm; _ } ->
+          Format.fprintf ppf
+            "++ Handler %d ++@,\
+             %a"
+            i
+            (pretty_pm_ ~print_default) pm
+        ) handlers
+      in
+      Format.fprintf ppf "PM Or:@,\
+                          %a@,\
+                          %a@,\
+                          %a"
+        (pretty_pm_ ~print_default) (erase_pm x.body)
+        pretty_matrix x.or_matrix
+        pretty_handlers x.handlers
 
-let pretty_precompiled_res first nexts =
-  pretty_precompiled first;
-  List.iter
-    (fun (e, pmh) ->
-      eprintf "** DEFAULT %d **\n" e;
-      pretty_precompiled pmh)
-    nexts
+let pretty_pm =
+    pretty_pm_ ~print_default:true
+let pretty_precompiled =
+    pretty_precompiled_ ~print_default:true
+let pretty_precompiled_without_default =
+    pretty_precompiled_ ~print_default:false
+
+let pretty_precompiled_res ppf (first, nexts) =
+  Format.fprintf ppf
+    "@[<v 2>First matrix:@,\
+       %a@]@,\
+     %a"
+    pretty_precompiled_without_default first
+    (Format.pp_print_list ~pp_sep:Format.pp_print_cut
+       (fun ppf (e, pmh) ->
+          Format.fprintf ppf
+            "@[<v 2>Default matrix %d:@,\
+             %a@]"
+            e
+            pretty_precompiled_without_default pmh)
+    ) nexts
 
 (* Identifying some semantically equivalent lambda-expressions,
    Our goal here is also to
@@ -1070,8 +1340,8 @@ let make_catch_delayed kind handler =
   | None -> (
       let i = next_raise_count () in
       (*
-    Printf.eprintf "SHARE LAMBDA: %i\n%s\n" i (string_of_lam handler);
-*)
+      debugf "SHARE LAMBDA: %i@,%a@," i Printlambda.lambda handler;
+      *)
       ( i,
         fun body ->
           match body with
@@ -1206,7 +1476,13 @@ let rec omega_like p =
   | Tpat_any
   | Tpat_var _ ->
       true
+<<<<<<< HEAD
   | Tpat_alias (p, _, _, _, _) -> omega_like p
+||||||| 121bedcfd2
+  | Tpat_alias (p, _, _) -> omega_like p
+=======
+  | Tpat_alias (p, _, _, _) -> omega_like p
+>>>>>>> ocaml/trunk
   | Tpat_or (p1, p2, _) -> omega_like p1 || omega_like p2
   | _ -> false
 
@@ -1351,7 +1627,13 @@ let as_matrix cases =
 
 *)
 
+<<<<<<< HEAD
 let rec split_or ~arg ~arg_sort (cls : Half_simple.clause list) args def =
+||||||| 121bedcfd2
+let rec split_or ~arg (cls : Half_simple.clause list) args def =
+=======
+let rec split_or (cls : Half_simple.clause list) args def =
+>>>>>>> ocaml/trunk
   let rec do_split (rev_before : Simple.clause list) rev_ors rev_no = function
     | [] ->
         cons_next (List.rev rev_before) (List.rev rev_ors) (List.rev rev_no)
@@ -1382,7 +1664,13 @@ let rec split_or ~arg ~arg_sort (cls : Half_simple.clause list) args def =
     in
     match yesor with
     | [] -> split_no_or yes args def nexts
+<<<<<<< HEAD
     | _ -> precompile_or ~arg ~arg_sort yes yesor args def nexts
+||||||| 121bedcfd2
+    | _ -> precompile_or ~arg yes yesor args def nexts
+=======
+    | _ -> precompile_or yes yesor args def nexts
+>>>>>>> ocaml/trunk
   in
   do_split [] [] [] cls
 
@@ -1457,9 +1745,18 @@ and precompile_var args cls def k =
      precompile the rest, add a PmVar to all precompiled submatrices.
 
      If the rest doesn't generate any split, abort and do_not_precompile. *)
+<<<<<<< HEAD
   match args with
   | [] -> assert false
   | _ :: ((Lvar v, _, arg_sort, _) as arg) :: rargs -> (
+||||||| 121bedcfd2
+  match args with
+  | [] -> assert false
+  | _ :: ((Lvar v, _) as arg) :: rargs -> (
+=======
+  match args.rest with
+  | { arg = Lvar v; _ } as first :: rargs -> (
+>>>>>>> ocaml/trunk
       (* We will use the name of the head column of the submatrix
          we compile, and this is the *second* column of our argument. *)
       match cls with
@@ -1468,20 +1765,31 @@ and precompile_var args cls def k =
           do_not_precompile args cls def k
       | _ -> (
           (* Precompile *)
-          let var_args = arg :: rargs in
+          let var_args = { first = { first with arg = Var v }; rest = rargs } in
           let var_cls =
             List.map
               (fun ((p, ps), act) ->
                 assert (simple_omega_like p);
-
                 (* we learned by pattern-matching on [args]
                    that [p::ps] has at least two arguments,
                    so [ps] must be non-empty *)
+<<<<<<< HEAD
                 half_simplify_clause ~arg:(Lvar v) ~arg_sort (ps, act))
+||||||| 121bedcfd2
+                half_simplify_clause ~arg:(fst arg) (ps, act))
+=======
+                half_simplify_clause ~arg:(Lvar v) (ps, act))
+>>>>>>> ocaml/trunk
               cls
           and var_def = Default_environment.pop_column def in
           let { me = first; matrix }, nexts =
+<<<<<<< HEAD
             split_or ~arg:(Lvar v) ~arg_sort var_cls var_args var_def
+||||||| 121bedcfd2
+            split_or ~arg:(Lvar v) var_cls var_args var_def
+=======
+            split_or var_cls var_args var_def
+>>>>>>> ocaml/trunk
           in
           (* Compute top information *)
           match nexts with
@@ -1532,7 +1840,13 @@ and do_not_precompile args cls def k =
     },
     k )
 
+<<<<<<< HEAD
 and precompile_or ~arg ~arg_sort (cls : Simple.clause list) ors args def k =
+||||||| 121bedcfd2
+and precompile_or ~arg (cls : Simple.clause list) ors args def k =
+=======
+and precompile_or (cls : Simple.clause list) ors args def k =
+>>>>>>> ocaml/trunk
   (* Example: if [cls] is a single-row matrix
 
        s11        p12 .. p1n -> act1
@@ -1587,11 +1901,7 @@ and precompile_or ~arg ~arg_sort (cls : Simple.clause list) ors args def k =
               { cases =
                   (patl, action)
                   :: List.map (fun ((_, ps), action) -> (ps, action)) others;
-                args =
-                  ( match args with
-                  | _ :: r -> r
-                  | _ -> assert false
-                  );
+                args = args.rest;
                 default = Default_environment.pop_compat orp def
               }
             in
@@ -1599,10 +1909,22 @@ and precompile_or ~arg ~arg_sort (cls : Simple.clause list) ors args def k =
             let patbound_action_vars =
               (* variables bound in the or-pattern
                  that are used in the orpm actions *)
+<<<<<<< HEAD
               Typedtree.pat_bound_idents_full arg_sort orp
               |> List.filter (fun (id, _, _, _, _) -> Ident.Set.mem id pm_fv)
               |> List.map (fun (id, _, ty, _, id_sort) ->
                      (id, Typeopt.layout orp.pat_env orp.pat_loc id_sort ty))
+||||||| 121bedcfd2
+              Typedtree.pat_bound_idents_full orp
+              |> List.filter (fun (id, _, _) -> Ident.Set.mem id pm_fv)
+              |> List.map (fun (id, _, ty) ->
+                     (id, Typeopt.value_kind orp.pat_env ty))
+=======
+              Typedtree.pat_bound_idents_full orp
+              |> List.filter (fun (id, _, _, _) -> Ident.Set.mem id pm_fv)
+              |> List.map (fun (id, _, ty, _) ->
+                     (id, Typeopt.value_kind orp.pat_env ty))
+>>>>>>> ocaml/trunk
             in
             let or_num = next_raise_count () in
             let new_patl = Patterns.omega_list patl in
@@ -1610,7 +1932,14 @@ and precompile_or ~arg ~arg_sort (cls : Simple.clause list) ors args def k =
               Lstaticraise (or_num, List.map (fun v -> Lvar v) vars)
             in
             let new_cases =
+<<<<<<< HEAD
               Simple.explode_or_pat ~arg ~arg_sort p
+||||||| 121bedcfd2
+              Simple.explode_or_pat ~arg p
+=======
+              let arg = arg_of_pure args.first.arg in
+              Simple.explode_or_pat ~arg p
+>>>>>>> ocaml/trunk
                 ~mk_action:mk_new_action
                 ~patbound_action_vars:(List.map fst patbound_action_vars)
               |> List.map (fun (p, act) -> ((p, new_patl), act)) in
@@ -1638,6 +1967,28 @@ and precompile_or ~arg ~arg_sort (cls : Simple.clause list) ors args def k =
     },
     k )
 
+let separate_debug_output () =
+  (* This function should be called when a debug-producing function
+     has just been called, and another debug-producing function is
+     about to be called.
+
+     The format boxes used for debug pretty-printing must use @, as
+     *separator* between two non-empty outputs. (We use vertical boxes
+     with indentation, where extraneous cuts give ugly output, so we
+     do not want to place a cut before each item or after each item.)
+
+     Each debug-outputting function can assume that it starts on a new
+     line, and is expected to *not* include a cut the end of its
+     output. The glue code that calls those functions is responsible
+     for placing separator cut @, between them.
+
+     In most cases we know statically that some output was produced
+     and some other output will follow, and place a cut separator @,
+     at the right places in the debug format strings. But sometimes it
+     is not obvious in the code that a separator is needed. This
+     function is meant to be used in those less obvious cases.  *)
+  debugf "@,"
+
 let dbg_split_and_precompile pm next nexts =
   if
     dbg
@@ -1648,9 +1999,16 @@ let dbg_split_and_precompile pm next nexts =
        | _ -> false
        )
   then (
-    Format.eprintf "** SPLIT **\n";
-    pretty_pm (erase_pm pm);
-    pretty_precompiled_res next nexts
+    debugf
+      "SPLIT@,\
+       %a@,\
+       @[<v 2>INTO:@,\
+         %a@]"
+      pretty_pm (erase_pm pm)
+      pretty_precompiled_res (next, nexts);
+    separate_debug_output
+      (* split_and_precompile is always followed by a compile_* function. *)
+      ();
   )
 
 let split_and_precompile_simplified pm =
@@ -1658,41 +2016,53 @@ let split_and_precompile_simplified pm =
   dbg_split_and_precompile pm next nexts;
   (next, nexts)
 
+<<<<<<< HEAD
 let split_and_precompile_half_simplified ~arg ~arg_sort pm =
   let { me = next }, nexts =
     split_or ~arg ~arg_sort pm.cases pm.args pm.default
   in
+||||||| 121bedcfd2
+let split_and_precompile_half_simplified ~arg pm =
+  let { me = next }, nexts = split_or ~arg pm.cases pm.args pm.default in
+=======
+let split_and_precompile_half_simplified pm =
+  let { me = next }, nexts = split_or pm.cases pm.args pm.default in
+>>>>>>> ocaml/trunk
   dbg_split_and_precompile pm next nexts;
   (next, nexts)
 
 (* General divide functions *)
 
 type cell = {
-  pm : initial_clause pattern_matching;
+  pm : (args, initial_clause) pattern_matching;
   ctx : Context.t;
   discr : Patterns.Head.t
 }
 (** a submatrix after specializing by discriminant pattern;
     [ctx] is the context shared by all rows. *)
 
-let make_matching get_expr_args head def ctx = function
-  | [] -> fatal_error "Matching.make_matching"
-  | arg :: rem ->
-      let def = Default_environment.specialize head def
-      and args = get_expr_args head arg rem
-      and ctx = Context.specialize head ctx in
-      { pm = { cases = []; args; default = def }; ctx; discr = head }
+let make_matching get_expr_args head def ctx { first; rest } =
+  let def = Default_environment.specialize head def in
+  let first = { first with arg = arg_of_pure first.arg } in
+  let args = get_expr_args head first rest in
+  let ctx = Context.specialize head ctx in
+  { pm = { cases = []; args; default = def }; ctx; discr = head }
 
-let make_line_matching get_expr_args head def = function
-  | [] -> fatal_error "Matching.make_line_matching"
-  | arg :: rem ->
-      { cases = [];
-        args = get_expr_args head arg rem;
-        default = Default_environment.specialize head def
-      }
+let make_line_matching get_expr_args head def { first; rest } =
+  let first = { first with arg = arg_of_pure first.arg } in
+  { cases = [];
+    args = get_expr_args head first rest;
+    default = Default_environment.specialize head def
+  }
 
 type 'a division = {
+<<<<<<< HEAD
   args : (lambda * let_kind * Jkind.sort * layout) list;
+||||||| 121bedcfd2
+  args : (lambda * let_kind) list;
+=======
+  args : split_args;
+>>>>>>> ocaml/trunk
   cells : ('a * cell) list
 }
 
@@ -1710,7 +2080,7 @@ let add_in_div make_matching_fun eq_key key patl_action division =
   { division with cells }
 
 let divide get_expr_args eq_key get_key get_pat_args ctx
-    (pm : Simple.clause pattern_matching) =
+    (pm : (split_args, Simple.clause) pattern_matching) =
   let add ((p, patl), action) division =
     let ph = Simple.head p in
     let p = General.erase p in
@@ -1727,7 +2097,7 @@ let add_line patl_action pm =
   pm
 
 let divide_line make_ctx get_expr_args get_pat_args discr ctx
-    (pm : Simple.clause pattern_matching) =
+    (pm : (split_args, Simple.clause) pattern_matching) =
   let add ((p, patl), action) submatrix =
     let p = General.erase p in
     add_line (get_pat_args p patl, action) submatrix
@@ -1757,9 +2127,9 @@ let drop_expr_arg _head _arg rem = rem
 let get_key_constant caller = function
   | { pat_desc = Tpat_constant cst } -> cst
   | p ->
-      Format.eprintf "BAD: %s" caller;
-      pretty_pat p;
-      assert false
+      fatal_errorf "BAD(%s): %a"
+        caller
+        pretty_pat p
 
 let get_pat_args_constant = drop_pat_arg
 let get_expr_args_constant = drop_expr_arg
@@ -1790,13 +2160,20 @@ let get_pat_args_constr p rem =
     args @ rem
   | _ -> assert false
 
+<<<<<<< HEAD
 let get_expr_args_constr ~scopes head (arg, _mut, sort, layout) rem =
+||||||| 121bedcfd2
+let get_expr_args_constr ~scopes head (arg, _mut) rem =
+=======
+let get_expr_args_constr ~scopes head { arg; mut; _ } rem =
+>>>>>>> ocaml/trunk
   let cstr =
     match head.pat_desc with
     | Patterns.Head.Construct cstr -> cstr
     | _ -> fatal_error "Matching.get_expr_args_constr"
   in
   let loc = head_loc ~scopes head in
+<<<<<<< HEAD
   (* CR layouts v5: This sanity check should be removed or changed to
      specifically check for void when we add other non-value sorts. *)
   Array.iter (fun jkind ->
@@ -1823,6 +2200,26 @@ let get_expr_args_constr ~scopes head (arg, _mut, sort, layout) rem =
           in
           let shape = Lambda.transl_mixed_product_shape shape in
           Pmixedfield (pos, read, shape, Reads_agree)
+||||||| 121bedcfd2
+  let make_field_accesses binding_kind first_pos last_pos argl =
+    let rec make_args pos =
+      if pos > last_pos then
+        argl
+      else
+        (Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc),
+               binding_kind) :: make_args (pos + 1)
+=======
+  let make_field_accesses binding_kind first_pos last_pos argl =
+    let rec make_args pos =
+      if pos > last_pos then
+        argl
+      else
+        {
+          arg = Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc);
+          mut = compose_mut mut Immutable;
+          binding_kind;
+        } :: make_args (pos + 1)
+>>>>>>> ocaml/trunk
     in
     let jkind = cstr.cstr_arg_jkinds.(field) in
     let sort = Jkind.sort_of_jkind jkind in
@@ -1830,8 +2227,15 @@ let get_expr_args_constr ~scopes head (arg, _mut, sort, layout) rem =
     (Lprim (prim, [ arg ], loc), binding_kind, sort, layout)
   in
   if cstr.cstr_inlined <> None then
+<<<<<<< HEAD
     (arg, Alias, sort, layout) :: rem
+||||||| 121bedcfd2
+    (arg, Alias) :: rem
+=======
+    { arg; binding_kind = Alias; mut } :: rem
+>>>>>>> ocaml/trunk
   else
+<<<<<<< HEAD
     match cstr.cstr_repr with
     | Variant_boxed _ ->
         List.init cstr.cstr_arity
@@ -1842,6 +2246,21 @@ let get_expr_args_constr ~scopes head (arg, _mut, sort, layout) rem =
         List.init cstr.cstr_arity
           (fun i -> make_field_access Alias ~field:i ~pos:(i+1))
         @ rem
+||||||| 121bedcfd2
+    match cstr.cstr_tag with
+    | Cstr_constant _
+    | Cstr_block _ ->
+        make_field_accesses Alias 0 (cstr.cstr_arity - 1) rem
+    | Cstr_unboxed -> (arg, Alias) :: rem
+    | Cstr_extension _ -> make_field_accesses Alias 1 cstr.cstr_arity rem
+=======
+    match cstr.cstr_tag with
+    | Cstr_constant _
+    | Cstr_block _ ->
+        make_field_accesses Alias 0 (cstr.cstr_arity - 1) rem
+    | Cstr_unboxed -> { arg; binding_kind = Alias; mut } :: rem
+    | Cstr_extension _ -> make_field_accesses Alias 1 cstr.cstr_arity rem
+>>>>>>> ocaml/trunk
 
 let divide_constructor ~scopes ctx pm =
   divide
@@ -1855,16 +2274,32 @@ let divide_constructor ~scopes ctx pm =
 
 let get_expr_args_variant_constant = drop_expr_arg
 
+<<<<<<< HEAD
 let nonconstant_variant_field index =
   Lambda.Pfield(index, Pointer, Reads_agree)
 
 let get_expr_args_variant_nonconst ~scopes head (arg, _mut, _sort, _layout)
       rem =
+||||||| 121bedcfd2
+let get_expr_args_variant_nonconst ~scopes head (arg, _mut) rem =
+=======
+let get_expr_args_variant_nonconst ~scopes head { arg; mut; _ } rem =
+>>>>>>> ocaml/trunk
   let loc = head_loc ~scopes head in
+<<<<<<< HEAD
    let field_prim = nonconstant_variant_field 1 in
   (Lprim (field_prim, [ arg ], loc), Alias, Jkind.Sort.for_variant_arg,
    layout_variant_arg)
   :: rem
+||||||| 121bedcfd2
+  (Lprim (Pfield (1, Pointer, Immutable), [ arg ], loc), Alias) :: rem
+=======
+  {
+    arg = Lprim (Pfield (1, Pointer, Immutable), [ arg ], loc);
+    binding_kind = Alias;
+    mut = compose_mut mut Immutable;
+  } :: rem
+>>>>>>> ocaml/trunk
 
 let divide_variant ~scopes row ctx { cases = cl; args; default = def } =
   let rec divide = function
@@ -1938,11 +2373,11 @@ let get_mod_field modname field =
      in
      match Env.open_pers_signature modname env with
      | Error `Not_found ->
-         fatal_error ("Module " ^ modname ^ " unavailable.")
+         fatal_errorf "Module %s unavailable." modname
      | Ok env -> (
          match Env.find_value_by_name (Longident.Lident field) env with
          | exception Not_found ->
-             fatal_error ("Primitive " ^ modname ^ "." ^ field ^ " not found.")
+             fatal_errorf "Primitive %s.%s not found." modname field
          | path, _ -> transl_value_path Loc_unknown env path
        ))
 
@@ -2054,6 +2489,7 @@ let inline_lazy_force arg pos loc =
         ap_loc = loc;
         ap_func = Lazy.force code_force_lazy;
         ap_args = [ Lconst (Const_base (Const_int 0)); arg ];
+<<<<<<< HEAD
         ap_result_layout = Lambda.layout_lazy_contents;
         ap_region_close = pos;
         ap_mode = alloc_heap;
@@ -2068,6 +2504,13 @@ let inline_lazy_force arg pos loc =
         ap_inlined = Never_inlined;
         ap_specialised = Default_specialise;
         ap_probe=None;
+||||||| 121bedcfd2
+        ap_inlined = Default_inline;
+        ap_specialised = Default_specialise
+=======
+        ap_inlined = Never_inline;
+        ap_specialised = Default_specialise
+>>>>>>> ocaml/trunk
       }
   else if !Clflags.native_code && not (Clflags.is_flambda2 ()) then
     (* CR vlaviron: Find a way for Flambda 2 to avoid both the call to
@@ -2079,10 +2522,28 @@ let inline_lazy_force arg pos loc =
          tables (~ 250 elts); conditionals are better *)
     inline_lazy_force_cond arg pos loc
 
+<<<<<<< HEAD
 let get_expr_args_lazy ~scopes head (arg, _mut, _sort, _layout) rem =
+||||||| 121bedcfd2
+let get_expr_args_lazy ~scopes head (arg, _mut) rem =
+=======
+let get_expr_args_lazy ~scopes head { arg; mut; _ } rem =
+>>>>>>> ocaml/trunk
   let loc = head_loc ~scopes head in
+<<<<<<< HEAD
   (inline_lazy_force arg Rc_normal loc, Strict, Jkind.Sort.for_lazy_body,
    layout_lazy_contents) :: rem
+||||||| 121bedcfd2
+  (inline_lazy_force arg loc, Strict) :: rem
+=======
+  {
+    arg = inline_lazy_force arg loc;
+    binding_kind = Strict;
+    mut = compose_mut mut Immutable;
+    (* A lazy pattern is considered immutable, forcing its argument
+       always returns the same value. *)
+  } :: rem
+>>>>>>> ocaml/trunk
 
 let divide_lazy ~scopes head ctx pm =
   divide_line (Context.specialize head)
@@ -2098,16 +2559,33 @@ let get_pat_args_tuple arity p rem =
   | { pat_desc = Tpat_tuple args } -> (List.map snd args) @ rem
   | _ -> assert false
 
+<<<<<<< HEAD
 let get_expr_args_tuple ~scopes head (arg, _mut, _sort, _layout) rem =
+||||||| 121bedcfd2
+let get_expr_args_tuple ~scopes head (arg, _mut) rem =
+=======
+let get_expr_args_tuple ~scopes head { arg; mut; _ } rem =
+>>>>>>> ocaml/trunk
   let loc = head_loc ~scopes head in
   let arity = Patterns.Head.arity head in
   let rec make_args pos =
     if pos >= arity then
       rem
     else
+<<<<<<< HEAD
       (Lprim (Pfield (pos, Pointer, Reads_agree), [ arg ], loc), Alias,
        Jkind.Sort.for_tuple_element, layout_tuple_element)
         :: make_args (pos + 1)
+||||||| 121bedcfd2
+      (Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc),
+             Alias) :: make_args (pos + 1)
+=======
+      {
+        arg = Lprim (Pfield (pos, Pointer, Immutable), [ arg ], loc);
+        binding_kind = Alias;
+        mut = compose_mut mut Immutable;
+      } :: make_args (pos + 1)
+>>>>>>> ocaml/trunk
   in
   make_args 0
 
@@ -2137,7 +2615,13 @@ let get_pat_args_record num_fields p rem =
       record_matching_line num_fields lbl_pat_list @ rem
   | _ -> assert false
 
+<<<<<<< HEAD
 let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
+||||||| 121bedcfd2
+let get_expr_args_record ~scopes head (arg, _mut) rem =
+=======
+let get_expr_args_record ~scopes head { arg; mut; _ } rem =
+>>>>>>> ocaml/trunk
   let loc = head_loc ~scopes head in
   let all_labels =
     let open Patterns.Head in
@@ -2200,8 +2684,28 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
             Lprim (Pmixedfield (lbl.lbl_pos, read, shape, sem), [ arg ], loc),
             lbl_sort, lbl_layout
       in
+<<<<<<< HEAD
       let str = if Types.is_mutable lbl.lbl_mut then StrictOpt else Alias in
       (access, str, sort, layout) :: make_args (pos + 1)
+||||||| 121bedcfd2
+      let str =
+        match lbl.lbl_mut with
+        | Immutable -> Alias
+        | Mutable -> StrictOpt
+      in
+      (access, str) :: make_args (pos + 1)
+=======
+      let binding_kind =
+        match lbl.lbl_mut with
+        | Immutable -> Alias
+        | Mutable -> StrictOpt
+      in
+      {
+        arg = access;
+        binding_kind;
+        mut = compose_mut mut lbl.lbl_mut;
+      } :: make_args (pos + 1)
+>>>>>>> ocaml/trunk
   in
   make_args 0
 
@@ -2228,8 +2732,16 @@ let get_pat_args_array p rem =
   | { pat_desc = Tpat_array (_, _, patl) } -> patl @ rem
   | _ -> assert false
 
+<<<<<<< HEAD
 let get_expr_args_array ~scopes kind head (arg, _mut, _sort, _layout) rem =
   let am, arg_sort, len =
+||||||| 121bedcfd2
+let get_expr_args_array ~scopes kind head (arg, _mut) rem =
+  let len =
+=======
+let get_expr_args_array ~scopes kind head { arg; mut; _ } rem =
+  let len =
+>>>>>>> ocaml/trunk
     let open Patterns.Head in
     match head.pat_desc with
     | Array (am, arg_sort, len) -> am, arg_sort, len
@@ -2240,6 +2752,7 @@ let get_expr_args_array ~scopes kind head (arg, _mut, _sort, _layout) rem =
     if pos >= len then
       rem
     else
+<<<<<<< HEAD
       (* TODO: The resulting float should be allocated to at the mode of the
          array pattern, once that's available *)
       let ref_kind = Lambda.(array_ref_kind alloc_heap kind) in
@@ -2252,6 +2765,23 @@ let get_expr_args_array ~scopes kind head (arg, _mut, _sort, _layout) rem =
         arg_sort,
         result_layout)
       :: make_args (pos + 1)
+||||||| 121bedcfd2
+      ( Lprim
+          (Parrayrefu kind, [ arg; Lconst (Const_base (Const_int pos)) ], loc),
+        StrictOpt )
+      :: make_args (pos + 1)
+=======
+      let arg =
+        Lprim
+          (Parrayrefu kind,
+           [ arg; Lconst (Const_base (Const_int pos)) ], loc)
+      in
+      {
+        arg;
+        binding_kind = StrictOpt;
+        mut = compose_mut mut Mutable;
+      } :: make_args (pos + 1)
+>>>>>>> ocaml/trunk
   in
   make_args 0
 
@@ -2654,8 +3184,8 @@ let as_interval_canfail fail low high l =
   let do_store _tag act =
     let i = store.act_store () act in
     (*
-    eprintf "STORE [%s] %i %s\n" tag i (string_of_lam act) ;
-*)
+    debugf "@,STORE [%s] %i %a" tag i Printlambda.lambda act;
+    *)
     i
   in
   let rec nofail_rec cur_low cur_high cur_act = function
@@ -2781,79 +3311,161 @@ let complete_pats_constrs = function
   | _ -> assert false
 
 (*
-     Following two ``failaction'' function compute n, the trap handler
+    Following two ``failaction'' function compute n, the trap handler
     to jump to in case of failure of elementary tests
 *)
 
-let mk_failaction_neg partial ctx def =
-  match partial with
-  | Partial -> (
-      match Default_environment.pop def with
-      | Some ((_, idef), _) ->
-          (Some (Lstaticraise (idef, [])), Jumps.singleton idef ctx)
-      | None ->
-          (* Act as Total, this means
-             If no appropriate default matrix exists,
-             then this switch cannot fail *)
-          (None, Jumps.empty)
-    )
-  | Total -> (None, Jumps.empty)
+let comp_exit ctx def =
+  match Default_environment.pop def with
+  | Some ((i, _), _) -> Lstaticraise (i, []), Jumps.singleton i ctx
+  | None -> Default_environment.raise_final_exit def, Jumps.empty Partial
 
-(* In line with the article and simpler than before *)
+let mk_failaction_neg partial ctx def =
+  debugf
+    "@,@[<v 2>COMBINE (mk_failaction_neg %a)@]"
+    pp_partial partial
+  ;
+  match partial with
+  | Partial ->
+      let lam, jumps = comp_exit ctx def in
+      (Some lam, jumps)
+  | Total -> (None, Jumps.empty Total)
+
+(* In [mk_failaction_pos partial seen ctx defs],
+   - [partial] is Total if we know the current switch
+     is already exhaustive
+   - [seen] is the list of constructors accepted by the switch
+     (those that will be matched)
+   - [ctx] is the current context (what we know of the value
+     being matched)
+   - [defs] is the default environment (what inputs
+     are expected by the switches present at larger exit numbers).
+
+   The function returns a triple [(fail, fails, jumps)] containing
+   information for the failure cases, the constructors missing from
+   the current switch:
+   - [fail] is an optional 'default' action for the switch
+   - [fails] is a list of extra switch clauses to add for failure cases,
+     each jumping to a larger exit number
+   - [jumps] contains a jump summary for all these new cases
+     (context information for all exits they reach)
+
+   The general strategy is to compute an accurate list of [fails] and
+   try to avoid having a default action, as this generates better
+   code. But we choose to have a default action when the list [fails]
+   would be too large or too costly to compute.
+
+   Through its jump summary, [mk_failaction_pos] propagates "negative
+   information" about the constructors not taken. For example, if
+   a switch only accepts the [None] constructor, [mk_failaction_pos]
+   generates a failure clause along with context information that the
+   value reaching the failure clause must be [Some _].
+*)
 let mk_failaction_pos partial seen ctx defs =
-  if dbg then (
-    Format.eprintf "**POS**\n";
-    Default_environment.pp defs;
-    ()
-  );
-  let rec scan_def env to_test defs =
-    match (to_test, Default_environment.pop defs) with
-    | [], _
-    | _, None ->
-        List.fold_left
-          (fun (klist, jumps) (pats, i) ->
-            let action = Lstaticraise (i, []) in
-            let klist =
-              List.fold_right
-                (fun pat r -> (get_key_constr pat, action) :: r)
-                pats klist
-            and jumps =
-              Jumps.add i (Context.lub (list_as_pat pats) ctx) jumps
-            in
-            (klist, jumps))
-          ([], Jumps.empty) env
-    | _, Some ((pss, idef), rem) -> (
-        let now, later =
-          List.partition (fun (_p, p_ctx) -> Context.matches p_ctx pss) to_test
-        in
-        match now with
-        | [] -> scan_def env to_test rem
-        | _ -> scan_def ((List.map fst now, idef) :: env) later rem
-      )
-  in
-  let fail_pats = complete_pats_constrs seen in
-  if List.length fail_pats < !Clflags.match_context_rows then (
-    let fail, jmps =
-      scan_def []
-        (List.map (fun pat -> (pat, Context.lub pat ctx)) fail_pats)
-        defs
-    in
-    if dbg then (
-      eprintf "POSITIVE JUMPS [%i]:\n" (List.length fail_pats);
-      Jumps.eprintf jmps
-    );
-    (None, fail, jmps)
-  ) else (
-    (* Too many non-matched constructors -> reduced information *)
-    if dbg then eprintf "POS->NEG!!!\n%!";
+  (* The failure patterns are formed of the constructors not present
+     in [seen]. For example, if [seen] is [[None]], then [fail_pats]
+     will be [[Some _]]. *)
+  let input_fail_pats = complete_pats_constrs seen in
+  if List.length input_fail_pats >= !Clflags.match_context_rows then (
+    (* Too many non-matched constructors -> reduced information. *)
     let fail, jumps = mk_failaction_neg partial ctx defs in
-    if dbg then
-      eprintf "FAIL: %s\n"
-        ( match fail with
-        | None -> "<none>"
-        | Some lam -> string_of_lam lam
-        );
+    debugf
+      "@,@[<v 2>COMBINE (mk_failaction_pos)@,\
+           %a@,\
+           @[<v 2>FAIL:@,\
+             %t@]\
+           @]"
+      Default_environment.pp defs
+      ( fun ppf -> match fail with
+        | None -> Format.fprintf ppf "<none>"
+        | Some lam -> Printlambda.lambda ppf lam
+      )
+    ;
     (fail, [], jumps)
+  ) else (
+    let fail_pats_in_ctx =
+      List.filter_map (fun pat ->
+        let pat_ctx = Context.lub pat ctx in
+        if Context.is_empty pat_ctx then None
+        else Some (pat, pat_ctx)
+      ) input_fail_pats in
+    let mk_fails fail_pats action =
+      List.map (fun pat -> (get_key_constr pat, action)) fail_pats
+    in
+    (* We compare our failure patterns against our default environment;
+       for each failure pattern we compute a good exit, and from
+       it build a failure clause/action and the corresponding jump
+       summary. *)
+    let rec fails_and_jumps defs fail_pats_in_ctx =
+      if fail_pats_in_ctx = [] then
+        (* We have assigned exit point to all failure patterns, so
+           we can stop iterating on the exits. *)
+        [], Jumps.empty Total
+      else match Default_environment.pop defs with
+      | Some ((idef, pss), rem) ->
+          (* Collect the failure patterns whose context matches the
+             matrix [pss] of the next exit [idef] in the default
+             environment. *)
+          let now, later =
+            List.partition_map (fun ((p, p_ctx) as fail_pat) ->
+              if Context.matches p_ctx pss
+              then Either.Left p
+              else Either.Right fail_pat
+            ) fail_pats_in_ctx
+          in
+          if now = [] then fails_and_jumps rem later
+          else
+            let fails, jumps = fails_and_jumps rem later in
+            (* Grow the failing actions and jump summary for
+               these failure patterns. *)
+            let fails' =
+              mk_fails now (Lstaticraise (idef, [])) @ fails
+            in
+            let jumps' =
+              (* We specialize the current context to the or-pattern of
+                 all fail patterns going to this exit. This is equivalent
+                 to unioning the specialized contexts of each failure
+                 pattern, but more efficient -- the union would have a lot
+                 of redundancy. *)
+              let fail_pat = list_as_pat now in
+              let fail_ctx = Context.lub fail_pat ctx in
+              Jumps.add idef fail_ctx jumps
+            in
+            fails', jumps'
+      | None ->
+          match partial with
+          | Total ->
+              (* In [Total] mode, if there are no exits left in the
+                 environment, we judge that the remaining failing patterns
+                 cannot arise. [mk_failaction_neg] has the same
+                 logic. *)
+              [], Jumps.empty Total
+          | Partial ->
+              (* in [Partial] mode, remaining failing patterns
+                 go to the final exit. *)
+              let final_pats = List.map fst fail_pats_in_ctx in
+              mk_fails final_pats (Default_environment.raise_final_exit defs),
+              Jumps.empty Partial
+    in
+    let fails, jumps = fails_and_jumps defs fail_pats_in_ctx in
+    debugf
+      "@,@[<v 2>COMBINE (mk_failaction_pos %a)@,\
+           %a@,\
+           @[<v 2>CTX:@,\
+             %a@]@,\
+           @[<v 2>FAIL PATTERNS:@,\
+             %a@]@,\
+           @[<v 2>POSITIVE JUMPS (%a):%a@]\
+           @]"
+      pp_partial partial
+      Default_environment.pp defs
+      Context.pp ctx
+      (Format.pp_print_list ~pp_sep:Format.pp_print_cut
+         Printpat.Compat.pretty_pat) input_fail_pats
+      pp_partial (Jumps.partial jumps)
+      Jumps.pp jumps
+    ;
+    (None, fails, jumps)
   )
 
 let combine_constant value_kind loc arg cst partial ctx def
@@ -2970,6 +3582,7 @@ let split_variant_cases (tag_lambda_list : ((int * bool) * lambda) list) =
   in
   (sort_int_lambda_list const, sort_int_lambda_list nonconst)
 
+<<<<<<< HEAD
 let split_extension_cases tag_lambda_list =
   List.partition_map
     (fun ({cstr_constant; cstr_tag}, act) ->
@@ -2992,6 +3605,20 @@ let transl_match_on_option value_kind arg loc ~if_some ~if_none =
     Lifthenelse(arg, if_some, if_none, value_kind)
 
 let combine_constructor value_kind loc arg pat_env cstr partial ctx def
+||||||| 121bedcfd2
+let combine_constructor loc arg pat_env cstr partial ctx def
+=======
+let transl_match_on_option arg loc ~if_some ~if_none =
+  (* Keeping the Pisint test would make the bytecode
+     slightly worse, but it lets the native compiler generate
+     better code -- see #10681. *)
+  if !Clflags.native_code then
+    Lifthenelse(Lprim (Pisint, [ arg ], loc), if_none, if_some)
+  else
+    Lifthenelse(arg, if_some, if_none)
+
+let combine_constructor loc arg pat_env cstr partial ctx def
+>>>>>>> ocaml/trunk
     (descr_lambda_list, total1, pats) =
   match cstr.cstr_tag with
   | Extension _ ->
@@ -3041,7 +3668,7 @@ let combine_constructor value_kind loc arg pat_env cstr partial ctx def
       let sig_complete = ncases = nconstrs in
       let fail_opt, fails, local_jumps =
         if sig_complete then
-          (None, [], Jumps.empty)
+          (None, [], Jumps.empty Total)
         else
           let constrs =
             List.map2 (fun (constr, _act) p -> { p with pat_desc = constr })
@@ -3081,10 +3708,28 @@ let combine_constructor value_kind loc arg pat_env cstr partial ctx def
             match
               (cstr.cstr_consts, cstr.cstr_nonconsts, consts, nonconsts)
             with
+<<<<<<< HEAD
             | 1, 1, [ (0, act1) ], [ (0, act2) ]
               when not (Clflags.is_flambda2 ()) ->
                 transl_match_on_option value_kind arg loc
                   ~if_none:act1 ~if_some:act2
+||||||| 121bedcfd2
+            | 1, 1, [ (0, act1) ], [ (0, act2) ] ->
+                (* This case is very frequent, it corresponds to
+                   options and lists. *)
+                (* Keeping the Pisint test would make the bytecode
+                   slightly worse, but it lets the native compiler generate
+                   better code -- see #10681. *)
+                if !Clflags.native_code then
+                  Lifthenelse(Lprim (Pisint, [ arg ], loc), act1, act2)
+                else
+                  Lifthenelse(arg, act2, act1)
+=======
+            | 1, 1, [ (0, act1) ], [ (0, act2) ] ->
+                (* This case is very frequent, it corresponds to
+                   options and lists. *)
+                transl_match_on_option arg loc ~if_none:act1 ~if_some:act2
+>>>>>>> ocaml/trunk
             | n, 0, _, [] ->
                 (* The matched type defines constant constructors only.
                    (typically the constant cases are dense, so
@@ -3186,7 +3831,7 @@ let combine_variant value_kind loc row arg partial ctx def
       | Total -> true
       | _ -> false
     then
-      (None, Jumps.empty)
+      (None, Jumps.empty Total)
     else
       mk_failaction_neg partial ctx def
   in
@@ -3258,8 +3903,7 @@ let rec event_branch repr lam =
       Llet (str, k, id, lam, event_branch repr body)
   | Lstaticraise _, _ -> lam
   | _, Some _ ->
-      Printlambda.lambda Format.str_formatter lam;
-      fatal_error ("Matching.event_branch: " ^ Format.flush_str_formatter ())
+      fatal_errorf "Matching.event_branch: %a" Printlambda.lambda lam
 
 (*
    This exception is raised when the compiler cannot produce code
@@ -3285,8 +3929,11 @@ let compile_list compile_fun division =
           c_rec totals rem
         else begin
           match compile_fun cell.ctx cell.pm with
-          | exception Unused -> c_rec totals rem
+          | exception Unused ->
+            if rem <> [] then separate_debug_output ();
+            c_rec totals rem
           | lambda1, total1 ->
+            if rem <> [] then separate_debug_output ();
             let c_rem, total, new_discrs =
               c_rec (Jumps.map Context.combine total1 :: totals) rem
             in
@@ -3305,13 +3952,21 @@ let compile_orhandlers value_kind compile_fun lambda1 total1 ctx to_catch =
         let ctx = Context.select_columns mat ctx in
         match compile_fun ctx pm with
         | exception Unused ->
+<<<<<<< HEAD
           (* Whilst the handler is [lambda_unit] it is actually unused and only added
              to produce well-formed code. In reality this expression returns a
              [value_kind]. *)
           do_rec
             (Lstaticcatch (r, (i, vars), lambda_unit, Same_region, value_kind))
             total_r rem
+||||||| 121bedcfd2
+          do_rec (Lstaticcatch (r, (i, vars), lambda_unit)) total_r rem
+=======
+          if rem <> [] then separate_debug_output ();
+          do_rec (Lstaticcatch (r, (i, vars), lambda_unit)) total_r rem
+>>>>>>> ocaml/trunk
         | handler_i, total_i ->
+          if rem <> [] then separate_debug_output ();
           begin match raw_action r with
           | Lstaticraise (j, args) ->
               if i = j then
@@ -3387,12 +4042,27 @@ let rec lower_bind v arg_layout arg lam =
         Llet (Alias, k, vv, lv, lower_bind v arg_layout arg l)
   | _ -> bind_with_layout Alias (v, arg_layout) arg lam
 
+<<<<<<< HEAD
 let bind_check str v arg_layout arg lam =
   match (str, arg) with
   | _, Lvar _ -> bind_with_layout str (v, arg_layout) arg lam
   | Alias, _ -> lower_bind v arg_layout arg lam
   | _, _ -> bind_with_layout str (v, arg_layout) arg lam
+||||||| 121bedcfd2
+let bind_check str v arg lam =
+  match (str, arg) with
+  | _, Lvar _ -> bind str v arg lam
+  | Alias, _ -> lower_bind v arg lam
+  | _, _ -> bind str v arg lam
+=======
+let bind_check kind v arg lam =
+  match (kind, arg) with
+  | _, Lvar _ -> bind kind v arg lam
+  | Alias, _ -> lower_bind v arg lam
+  | _, _ -> bind kind v arg lam
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let comp_exit ctx m =
   match Default_environment.pop m.default with
   | Some ((_, i), _) -> (Lstaticraise (i, []), Jumps.singleton i ctx)
@@ -3400,28 +4070,48 @@ let comp_exit ctx m =
 
 let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_matchs =
   match next_matchs with
+||||||| 121bedcfd2
+let comp_exit ctx m =
+  match Default_environment.pop m.default with
+  | Some ((_, i), _) -> (Lstaticraise (i, []), Jumps.singleton i ctx)
+  | None -> fatal_error "Matching.comp_exit"
+
+let rec comp_match_handlers comp_fun partial ctx first_match next_matchs =
+  match next_matchs with
+=======
+let rec comp_match_handlers comp_fun partial ctx first_match next_matches =
+  match next_matches with
+>>>>>>> ocaml/trunk
   | [] -> comp_fun partial ctx first_match
-  | rem -> (
-      let rec c_rec body total_body = function
-        | [] -> (body, total_body)
-        (* Hum, -1 means never taken
-        | (-1,pm)::rem -> c_rec body total_body rem *)
-        | (i, pm) :: rem -> (
-            let ctx_i, total_rem = Jumps.extract i total_body in
+  | (_, second_match) :: next_next_matches -> (
+      let rec c_rec body jumps_body = function
+        | [] -> (body, jumps_body)
+        | (i, pm_i) :: rem -> (
+            separate_debug_output ();
+            let ctx_i, jumps_rem = Jumps.extract i jumps_body in
             if Context.is_empty ctx_i then
-              c_rec body total_body rem
+              c_rec body jumps_body rem
             else begin
               let partial = match rem with
                 | [] -> partial
                 | _ -> Partial
               in
-              match comp_fun partial ctx_i pm with
-              | li, total_i ->
+              match comp_fun partial ctx_i pm_i with
+              | lambda_i, jumps_i ->
                 c_rec
+<<<<<<< HEAD
                   (Lstaticcatch (body, (i, []), li, Same_region, value_kind))
                   (Jumps.union total_i total_rem)
+||||||| 121bedcfd2
+                  (Lstaticcatch (body, (i, []), li))
+                  (Jumps.union total_i total_rem)
+=======
+                  (Lstaticcatch (body, (i, []), lambda_i))
+                  (Jumps.union jumps_i jumps_rem)
+>>>>>>> ocaml/trunk
                   rem
               | exception Unused ->
+<<<<<<< HEAD
                   (* Whilst the handler is [lambda_unit] it is actually unused and only added
                      to produce well-formed code. In reality this expression returns a
                      [value_kind]. *)
@@ -3429,10 +4119,20 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
                   (Lstaticcatch
                      (body, (i, []), lambda_unit, Same_region, value_kind))
                   total_rem rem
+||||||| 121bedcfd2
+                c_rec
+                  (Lstaticcatch (body, (i, []), lambda_unit))
+                  total_rem rem
+=======
+                c_rec
+                  (Lstaticcatch (body, (i, []), lambda_unit))
+                  jumps_rem rem
+>>>>>>> ocaml/trunk
             end
           )
       in
       match comp_fun Partial ctx first_match with
+<<<<<<< HEAD
       | first_lam, total ->
         c_rec first_lam total rem
       | exception Unused -> (
@@ -3440,6 +4140,21 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
         | [] -> raise Unused
         | (_, x) :: xs -> comp_match_handlers value_kind comp_fun partial ctx x xs
       )
+||||||| 121bedcfd2
+      | first_lam, total ->
+        c_rec first_lam total rem
+      | exception Unused -> (
+        match next_matchs with
+        | [] -> raise Unused
+        | (_, x) :: xs -> comp_match_handlers comp_fun partial ctx x xs
+      )
+=======
+      | first_lam, jumps ->
+        c_rec first_lam jumps next_matches
+      | exception Unused ->
+        separate_debug_output ();
+        comp_match_handlers comp_fun partial ctx second_match next_next_matches
+>>>>>>> ocaml/trunk
     )
 
 (* To find reasonable names for variables *)
@@ -3447,18 +4162,24 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
 let rec name_pattern default = function
   | ((pat, _), _) :: rem -> (
       match pat.pat_desc with
+<<<<<<< HEAD
       | Tpat_var (id, _, _, _) -> id
       | Tpat_alias (_, id, _, _, _) -> id
+||||||| 121bedcfd2
+      | Tpat_var (id, _) -> id
+      | Tpat_alias (_, id, _) -> id
+=======
+      | Tpat_var (id, _, _) -> id
+      | Tpat_alias (_, id, _, _) -> id
+>>>>>>> ocaml/trunk
       | _ -> name_pattern default rem
     )
   | _ -> Ident.create_local default
 
 let arg_to_var arg cls =
   match arg with
-  | Lvar v -> (v, arg)
-  | _ ->
-      let v = name_pattern "*match*" cls in
-      (v, Lvar v)
+  | Lvar v -> v
+  | _ -> name_pattern "*match*" cls
 
 (*
   The main compilation function.
@@ -3468,13 +4189,22 @@ let arg_to_var arg cls =
       ctx=a context
       m=a pattern matching
 
-   Output: a lambda term, a jump summary {..., exit number -> context, .. }
+   Output: a lambda term, a jump summary {..., exit number -> context, ... }
 *)
 
+<<<<<<< HEAD
 let rec compile_match ~scopes value_kind repr partial ctx
     (m : initial_clause pattern_matching) =
+||||||| 121bedcfd2
+let rec compile_match ~scopes repr partial ctx
+    (m : initial_clause pattern_matching) =
+=======
+let rec compile_match ~scopes repr partial ctx
+    (m : (args, initial_clause) pattern_matching) : lambda * Jumps.t =
+>>>>>>> ocaml/trunk
   match m.cases with
   | ([], action) :: rem ->
+<<<<<<< HEAD
       if is_guarded action then
         let lambda, total =
           compile_match ~scopes value_kind None partial ctx { m with cases = rem }
@@ -3482,13 +4212,44 @@ let rec compile_match ~scopes value_kind repr partial ctx
         (event_branch repr (patch_guarded lambda action), total)
       else
         (event_branch repr action, Jumps.empty)
+||||||| 121bedcfd2
+      if is_guarded action then
+        let lambda, total =
+          compile_match ~scopes None partial ctx { m with cases = rem }
+        in
+        (event_branch repr (patch_guarded lambda action), total)
+      else
+        (event_branch repr action, Jumps.empty)
+=======
+      let res =
+        if is_guarded action then
+          let lambda, total =
+            compile_match ~scopes None partial ctx { m with cases = rem }
+          in
+          (event_branch repr (patch_guarded lambda action), total)
+        else
+          (event_branch repr action, Jumps.empty Total)
+      in
+      debugf "empty matrix%t"
+        (fun ppf -> if is_guarded action then Format.fprintf ppf " (guarded)");
+      res
+>>>>>>> ocaml/trunk
   | nonempty_cases ->
       compile_match_nonempty ~scopes value_kind repr partial ctx
         { m with cases = map_on_rows Non_empty_row.of_initial nonempty_cases }
 
+<<<<<<< HEAD
 and compile_match_nonempty ~scopes value_kind repr partial ctx
     (m : Typedtree.pattern Non_empty_row.t clause pattern_matching)=
+||||||| 121bedcfd2
+and compile_match_nonempty ~scopes repr partial ctx
+    (m : Typedtree.pattern Non_empty_row.t clause pattern_matching) =
+=======
+and compile_match_nonempty ~scopes repr partial ctx
+    (m : (args, Typedtree.pattern Non_empty_row.t clause) pattern_matching) =
+>>>>>>> ocaml/trunk
   match m with
+<<<<<<< HEAD
   | { cases = []; args = [] } -> comp_exit ctx m
   | { args = (arg, str, arg_sort, layout) :: argl } ->
       let v, newarg = arg_to_var arg m.cases in
@@ -3502,8 +4263,32 @@ and compile_match_nonempty ~scopes value_kind repr partial ctx
         split_and_precompile_half_simplified ~arg:newarg ~arg_sort m
       in
       combine_handlers ~scopes value_kind repr partial ctx (v, str, layout, arg) first_match rem
+||||||| 121bedcfd2
+  | { cases = []; args = [] } -> comp_exit ctx m
+  | { args = (arg, str) :: argl } ->
+      let v, newarg = arg_to_var arg m.cases in
+      let args = (newarg, Alias) :: argl in
+      let cases = List.map (half_simplify_nonempty ~arg:newarg) m.cases in
+      let m = { m with args; cases } in
+      let first_match, rem =
+        split_and_precompile_half_simplified ~arg:newarg m in
+      combine_handlers ~scopes repr partial ctx (v, str, arg) first_match rem
+=======
+  | { cases = []; args = [] } -> comp_exit ctx m.default
+  | { args = { arg; binding_kind; _ } as first :: rest } ->
+      let v = arg_to_var arg m.cases in
+      bind_match_arg binding_kind v arg (
+        let args = { first = { first with arg = Var v }; rest } in
+        let cases = List.map (half_simplify_nonempty ~arg:(Lvar v)) m.cases in
+        let m = { m with args; cases } in
+        let first_match, rem =
+          split_and_precompile_half_simplified m in
+        combine_handlers ~scopes repr partial ctx first_match rem
+      )
+>>>>>>> ocaml/trunk
   | _ -> assert false
 
+<<<<<<< HEAD
 and compile_match_simplified ~scopes value_kind  repr partial ctx
     (m : Simple.clause pattern_matching) =
   match m with
@@ -3515,22 +4300,115 @@ and compile_match_simplified ~scopes value_kind  repr partial ctx
       combine_handlers value_kind ~scopes repr partial ctx (v, str, layout, arg)
         first_match rem
   | _ -> assert false
+||||||| 121bedcfd2
+and compile_match_simplified ~scopes repr partial ctx
+    (m : Simple.clause pattern_matching) =
+  match m with
+  | { cases = []; args = [] } -> comp_exit ctx m
+  | { args = ((Lvar v as arg), str) :: argl } ->
+      let args = (arg, Alias) :: argl in
+      let m = { m with args } in
+      let first_match, rem = split_and_precompile_simplified m in
+      combine_handlers ~scopes repr partial ctx (v, str, arg) first_match rem
+  | _ -> assert false
+=======
+and compile_match_simplified ~scopes repr partial ctx
+    (m : (split_args, Simple.clause) pattern_matching) =
+  let first_match, rem = split_and_precompile_simplified m in
+  combine_handlers ~scopes repr partial ctx first_match rem
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 and combine_handlers ~scopes value_kind repr partial ctx (v, str, arg_layout, arg)
     first_match rem =
   let lam, total =
     comp_match_handlers value_kind
       (( if dbg then
          do_compile_matching_pr ~scopes value_kind
+||||||| 121bedcfd2
+and combine_handlers ~scopes repr partial ctx (v, str, arg) first_match rem =
+  let lam, total =
+    comp_match_handlers
+      (( if dbg then
+         do_compile_matching_pr ~scopes
+=======
+and bind_match_arg kind v arg (lam, jumps) =
+  let jumps =
+    (* If the Lambda expression [arg] to access the first argument is
+       a mutable field read, then its binding and evaluation may be
+       emitted in different calls to [combine_handlers] on the same
+       column. Consider for example:
+
+         type ('a, 'b) mut_second = { immut : 'a; mutable mut : 'b; }
+
+         function
+         | {immut = false; mut = None} -> -1
+         | {immut = true ; mut = None} -> 0
+         | {immut = _ ;    mut = Some n} -> n
+
+       When compiling this example, [immut] will be matched first, and
+       each case will perform a [None] check and also jump to a shared
+       exit handler containing the [Some n] clause. The field access
+       to the [mut] field will be emitted three times, in each branch
+       of the switch and in the shared handler.
+
+       In the general case, the value of the mutable field may change
+       between the reads (due to a [when] guard or even a race from
+       another thread or domain), so we must be careful not to
+       propagate context information that could have become
+       incorrect. We "fix" the context information on mutable arguments
+       by calling [Context.erase_first_col] below.
+    *)
+    let mut =
+      (* This is somewhat of a hack: we notice that a pattern-matching
+         argument is mutable (its value can change if evaluated
+         several times) exactly when it is bound as StrictOpt. Alias
+         bindings are obviously pure, but Strict bindings are also only
+         used in the pattern-matching compiler for expressions that give
+         the same value when evaluated twice.
+         An alternative would be to track 'mutability of the field'
+         directly.
+      *)
+      match kind with
+      | Strict | Alias -> Immutable
+      | StrictOpt -> Mutable
+    in
+    match mut with
+    | Immutable -> jumps
+    | Mutable ->
+        Jumps.map Context.erase_first_col jumps in
+  (bind_check kind v arg lam,
+   jumps)
+
+and combine_handlers ~scopes repr partial ctx first_match rem =
+  comp_match_handlers
+    (( if dbg then
+         do_compile_matching_pr ~scopes
+>>>>>>> ocaml/trunk
        else
+<<<<<<< HEAD
          do_compile_matching ~scopes value_kind
        )
          repr)
       partial ctx first_match rem
   in
   (bind_check str v arg_layout arg lam, total)
+||||||| 121bedcfd2
+         do_compile_matching ~scopes
+       )
+         repr)
+      partial ctx first_match rem
+  in
+  (bind_check str v arg lam, total)
+=======
+         do_compile_matching ~scopes
+     )
+       repr)
+    partial ctx first_match rem
+>>>>>>> ocaml/trunk
 
 (* verbose version of do_compile_matching, for debug *)
+<<<<<<< HEAD
 and do_compile_matching_pr ~scopes value_kind repr partial ctx x =
   Format.eprintf "COMPILE: %s\nMATCH\n"
     ( match partial with
@@ -3543,11 +4421,45 @@ and do_compile_matching_pr ~scopes value_kind repr partial ctx x =
   let ((_, jumps) as r) = do_compile_matching ~scopes value_kind repr partial ctx x in
   Format.eprintf "JUMPS\n";
   Jumps.eprintf jumps;
+||||||| 121bedcfd2
+and do_compile_matching_pr ~scopes repr partial ctx x =
+  Format.eprintf "COMPILE: %s\nMATCH\n"
+    ( match partial with
+    | Partial -> "Partial"
+    | Total -> "Total"
+    );
+  pretty_precompiled x;
+  Format.eprintf "CTX\n";
+  Context.eprintf ctx;
+  let ((_, jumps) as r) = do_compile_matching ~scopes repr partial ctx x in
+  Format.eprintf "JUMPS\n";
+  Jumps.eprintf jumps;
+=======
+and do_compile_matching_pr ~scopes repr partial ctx x =
+  debugf
+    "@[<v>MATCH %a\
+     @,%a"
+    pp_partial partial
+    pretty_precompiled x;
+  debugf "@,@[<v 2>CTX:@,%a@]"
+    Context.pp ctx;
+  debugf "@,@[<v 2>COMPILE:@,";
+  let ((_, jumps) as r) =
+    try do_compile_matching ~scopes repr partial ctx x with
+    | exn ->
+        debugf "EXN (%s)@]@]" (Printexc.to_string exn);
+        raise exn
+  in
+  debugf "@]";
+  debugf "%a" Jumps.pp_section jumps;
+  debugf "@]";
+>>>>>>> ocaml/trunk
   r
 
 and do_compile_matching ~scopes value_kind repr partial ctx pmh =
   match pmh with
   | Pm pm -> (
+<<<<<<< HEAD
       let arg =
         match pm.args with
         | (first_arg, _, _, _) :: _ -> first_arg
@@ -3561,6 +4473,23 @@ and do_compile_matching ~scopes value_kind repr partial ctx pmh =
             *)
             assert false
       in
+||||||| 121bedcfd2
+      let arg =
+        match pm.args with
+        | (first_arg, _) :: _ -> first_arg
+        | _ ->
+            (* We arrive in do_compile_matching from:
+               - compile_matching
+               - recursive call on PmVars
+               The first one explicitly checks that [args] is nonempty, the
+               second one is only generated when the inner pm first looks at
+               a variable (i.e. there is something to look at).
+            *)
+            assert false
+      in
+=======
+      let arg = arg_of_pure pm.args.first.arg in
+>>>>>>> ocaml/trunk
       let ph = what_is_cases pm.cases in
       let pomega = Patterns.Head.to_omega_pattern ph in
       let ploc = head_loc ~scopes ph in
@@ -3716,9 +4645,12 @@ let check_partial pat_act_list =
 type failer_kind =
   | Raise_match_failure
   | Reraise_noloc of lambda
+  | Reperform_noloc of lambda list
 
 let failure_handler ~scopes loc ~failer () =
   match failer with
+  | Reperform_noloc reperform_lst ->
+    Lprim (Preperform, reperform_lst, Loc_unknown)
   | Reraise_noloc exn_lam ->
     Lprim (Praise Raise_reraise, [ exn_lam ], Scoped_location.Loc_unknown)
   | Raise_match_failure ->
@@ -3746,6 +4678,7 @@ let failure_handler ~scopes loc ~failer () =
         ],
         sloc )
 
+<<<<<<< HEAD
 let check_total ~scopes value_kind loc ~failer total lambda i =
   if Jumps.is_empty total then
     lambda
@@ -3773,15 +4706,89 @@ let toplevel_handler ~scopes ~return_layout loc ~failer partial args cases compi
       | (lam, total) ->
           check_total ~scopes return_layout loc ~failer total lam raise_num
       end
+||||||| 121bedcfd2
+let check_total ~scopes loc ~failer total lambda i =
+  if Jumps.is_empty total then
+    lambda
+  else
+    Lstaticcatch (lambda, (i, []),
+                  failure_handler ~scopes loc ~failer ())
+
+let toplevel_handler ~scopes loc ~failer partial args cases compile_fun =
+  match partial with
+  | Total when not !Clflags.safer_matching ->
+      let default = Default_environment.empty in
+      let pm = { args; cases; default } in
+      let (lam, total) = compile_fun Total pm in
+      assert (Jumps.is_empty total);
+      lam
+  | Partial | Total (* when !Clflags.safer_matching *) ->
+      let raise_num = next_raise_count () in
+      let default =
+        Default_environment.cons [ Patterns.omega_list args ] raise_num
+          Default_environment.empty in
+      let pm = { args; cases; default } in
+      begin match compile_fun Partial pm with
+      | exception Unused -> assert false
+      | (lam, total) ->
+          check_total ~scopes loc ~failer total lam raise_num
+      end
+=======
+let toplevel_handler ~scopes loc ~failer partial args cases compile_fun =
+  let compile_fun partial pm =
+    debugf "@[<v>MATCHING@,";
+    let result = compile_fun partial pm in
+    debugf "@]@.";
+    result
+  in
+  let final_exit = next_raise_count () in
+  let default = Default_environment.empty ~final_exit in
+  let pm = { args; cases; default } in
+  let safe_partial = if !Clflags.safer_matching then Partial else partial in
+  begin match compile_fun safe_partial pm with
+  | exception Unused -> assert false
+  | (lam, jumps) ->
+      match Jumps.partial jumps with
+      | Total -> lam
+      | Partial ->
+        Lstaticcatch (lam, (final_exit, []),
+                      failure_handler ~scopes loc ~failer ())
+  end
+
+let root_arg arg binding_kind =
+  (* The mutability information denotes the mutability of a *position*
+     inside the value, which indicates whether looking inside the
+     value of the scrutinee is a pure operation. At the root we are
+     immutable. *)
+  { arg; binding_kind; mut = Immutable }
+>>>>>>> ocaml/trunk
 
 let compile_matching ~scopes ~arg_sort ~arg_layout ~return_layout loc ~failer repr arg
       pat_act_list partial =
   let partial = check_partial pat_act_list partial in
+<<<<<<< HEAD
   let args = [ (arg, Strict, arg_sort, arg_layout) ] in
+||||||| 121bedcfd2
+  let args = [ (arg, Strict) ] in
+=======
+  let args = [ root_arg arg Strict ] in
+>>>>>>> ocaml/trunk
   let rows = map_on_rows (fun pat -> (pat, [])) pat_act_list in
+<<<<<<< HEAD
   toplevel_handler ~scopes ~return_layout loc ~failer partial args rows
     (fun partial pm -> compile_match_nonempty ~scopes return_layout repr
                          partial (Context.start 1) pm)
+||||||| 121bedcfd2
+  toplevel_handler ~scopes loc ~failer partial args rows (fun partial pm ->
+    compile_match_nonempty ~scopes repr partial (Context.start 1) pm)
+=======
+  let handler =
+    toplevel_handler ~scopes loc ~failer partial args rows
+  in
+  handler (fun partial pm ->
+    compile_match_nonempty ~scopes repr partial (Context.start 1) pm
+  )
+>>>>>>> ocaml/trunk
 
 let for_function ~scopes ~arg_sort ~arg_layout ~return_layout loc repr param
       pat_act_list partial =
@@ -3801,12 +4808,27 @@ let for_trywith ~scopes ~return_layout loc param pat_act_list =
     ~arg_layout:layout_block ~return_layout loc ~failer:(Reraise_noloc param)
     None param pat_act_list Partial
 
+<<<<<<< HEAD
 let simple_for_let ~scopes ~arg_sort ~return_layout loc param pat body =
   let arg_layout =
     Typeopt.layout pat.pat_env pat.pat_loc arg_sort pat.pat_type
   in
   compile_matching ~scopes ~arg_sort ~arg_layout ~return_layout loc
     ~failer:Raise_match_failure None param [ (pat, body) ] Partial
+||||||| 121bedcfd2
+let simple_for_let ~scopes loc param pat body =
+  compile_matching ~scopes loc ~failer:Raise_match_failure
+    None param [ (pat, body) ] Partial
+=======
+let for_handler ~scopes loc param cont cont_tail pat_act_list =
+  compile_matching ~scopes loc
+    ~failer:(Reperform_noloc [param; cont; cont_tail])
+    None param pat_act_list Partial
+
+let simple_for_let ~scopes loc param pat body =
+  compile_matching ~scopes loc ~failer:Raise_match_failure
+    None param [ (pat, body) ] Partial
+>>>>>>> ocaml/trunk
 
 (* Optimize binding of immediate tuples
 
@@ -3955,9 +4977,25 @@ let for_let ~scopes ~arg_sort ~return_layout loc param pat body =
       (* This eliminates a useless variable (and stack slot in bytecode)
          for "let _ = ...". See #6865. *)
       Lsequence (param, body)
+<<<<<<< HEAD
   | Tpat_var (id, _, _, _) ->
       (* fast path, and keep track of simple bindings to unboxable numbers *)
       let k = Typeopt.layout pat.pat_env pat.pat_loc arg_sort pat.pat_type in
+||||||| 121bedcfd2
+  | Tpat_var (id, _) ->
+      (* fast path, and keep track of simple bindings to unboxable numbers *)
+      let k = Typeopt.value_kind pat.pat_env pat.pat_type in
+=======
+  | Tpat_var (id, _, _) | Tpat_alias ({ pat_desc = Tpat_any }, id, _, _) ->
+      (* Fast path, and keep track of simple bindings to unboxable numbers.
+
+         Note: the (Tpat_alias (Tpat_any, id)) case needs to be
+         supported as well because the type-checker emits a typedtree
+         of this shape in presence of type constraints -- see the
+         non-polymorphic Ppat_constraint case in type_pat_aux.
+      *)
+      let k = Typeopt.value_kind pat.pat_env pat.pat_type in
+>>>>>>> ocaml/trunk
       Llet (Strict, k, id, param, body)
   | _ ->
       let opt = ref false in
@@ -3965,11 +5003,23 @@ let for_let ~scopes ~arg_sort ~return_layout loc param pat body =
       let catch_ids = pat_bound_idents_full arg_sort pat in
       let ids_with_kinds =
         List.map
+<<<<<<< HEAD
           (fun (id, _, typ, _, sort) ->
              (id, Typeopt.layout pat.pat_env pat.pat_loc sort typ))
+||||||| 121bedcfd2
+          (fun (id, _, typ) -> (id, Typeopt.value_kind pat.pat_env typ))
+=======
+          (fun (id, _, typ, _) -> (id, Typeopt.value_kind pat.pat_env typ))
+>>>>>>> ocaml/trunk
           catch_ids
       in
+<<<<<<< HEAD
       let ids = List.map (fun (id, _, _, _, _) -> id) catch_ids in
+||||||| 121bedcfd2
+      let ids = List.map (fun (id, _, _) -> id) catch_ids in
+=======
+      let ids = List.map (fun (id, _, _, _) -> id) catch_ids in
+>>>>>>> ocaml/trunk
       let bind =
         map_return (assign_pat ~scopes return_layout opt nraise ids loc pat
                       arg_sort)
@@ -3986,6 +5036,7 @@ let for_let ~scopes ~arg_sort ~return_layout loc param pat body =
 (* Easy case since variables are available *)
 let for_tupled_function ~scopes ~return_layout loc paraml pats_act_list partial =
   let partial = check_partial_list pats_act_list partial in
+<<<<<<< HEAD
   (* The arguments of a tupled function are always values since they must be
      tuple elements *)
   let args =
@@ -3993,6 +5044,11 @@ let for_tupled_function ~scopes ~return_layout loc paraml pats_act_list partial 
                          layout_tuple_element))
       paraml
   in
+||||||| 121bedcfd2
+  let args = List.map (fun id -> (Lvar id, Strict)) paraml in
+=======
+  let args = List.map (fun id -> root_arg (Lvar id) Strict) paraml in
+>>>>>>> ocaml/trunk
   let handler =
     toplevel_handler ~scopes ~return_layout loc ~failer:Raise_match_failure
       partial args pats_act_list in
@@ -4021,12 +5077,8 @@ let flatten_simple_pattern size (p : Simple.pattern) =
          where we know that the scrutinee is a tuple literal.
 
          Since the PM is well typed, none of these cases are possible. *)
-      let msg =
-        Format.fprintf Format.str_formatter
-          "Matching.flatten_pattern: got '%a'" top_pretty (General.erase p);
-        Format.flush_str_formatter ()
-      in
-      fatal_error msg
+      fatal_errorf
+        "Matching.flatten_pattern: got '%a'" pretty_pat (General.erase p)
 
 let flatten_cases size cases =
   List.map
@@ -4049,8 +5101,8 @@ let flatten_handler size handler =
   { handler with provenance = flatten_matrix size handler.provenance }
 
 type pm_flattened =
-  | FPmOr of (pattern, unit) pm_or_compiled
-  | FPm of pattern Non_empty_row.t clause pattern_matching
+  | FPmOr of (args, pattern, unit) pm_or_compiled
+  | FPm of (args, pattern Non_empty_row.t clause) pattern_matching
 
 let flatten_precompiled size args pmh =
   match pmh with
@@ -4079,26 +5131,49 @@ let compile_flattened ~scopes value_kind repr partial ctx pmh =
         (compile_match ~scopes value_kind repr partial)
         lam total ctx hs
 
+<<<<<<< HEAD
 let do_for_multiple_match ~scopes ~return_layout loc paraml mode pat_act_list partial =
   (* CR layouts v5: This function is called in cases where the scrutinee of a
      match is a literal tuple (e.g., [match e1, e2, e3 with ...]).  The
      typechecker treats the scrutinee here like any other tuple, so it's fine to
      assume the whole thing and the elements have sort value.  That will change
      when we allow non-values in structures. *)
+||||||| 121bedcfd2
+let do_for_multiple_match ~scopes loc paraml pat_act_list partial =
+=======
+let do_for_multiple_match ~scopes loc idl pat_act_list partial =
+>>>>>>> ocaml/trunk
   let repr = None in
   let param_lambda = List.map (fun (l, _, _) -> l) paraml in
   let arg =
     let sloc = Scoped_location.of_location ~scopes loc in
+<<<<<<< HEAD
     Lprim (Pmakeblock (0, Immutable, None, mode), param_lambda, sloc)
   in
   let arg_sort = Jkind.Sort.for_tuple in
+||||||| 121bedcfd2
+    Lprim (Pmakeblock (0, Immutable, None), paraml, sloc) in
+=======
+    let args = List.map (fun id -> Lvar id) idl in
+    Lprim (Pmakeblock (0, Immutable, None), args, sloc) in
+  let input_args = { first = root_arg (Tuple arg) Strict; rest = [] } in
+>>>>>>> ocaml/trunk
   let handler =
     let partial = check_partial pat_act_list partial in
     let rows = map_on_rows (fun p -> (p, [])) pat_act_list in
+<<<<<<< HEAD
     toplevel_handler ~scopes ~return_layout loc ~failer:Raise_match_failure
       partial [ (arg, Strict, Jkind.Sort.for_tuple, layout_block) ] rows in
+||||||| 121bedcfd2
+    toplevel_handler ~scopes loc ~failer:Raise_match_failure
+      partial [ (arg, Strict) ] rows in
+=======
+    toplevel_handler ~scopes loc ~failer:Raise_match_failure
+      partial input_args rows in
+>>>>>>> ocaml/trunk
   handler (fun partial pm1 ->
     let pm1_half =
+<<<<<<< HEAD
       { pm1 with
         cases = List.map (half_simplify_nonempty ~arg ~arg_sort) pm1.cases }
     in
@@ -4113,11 +5188,31 @@ let do_for_multiple_match ~scopes ~return_layout loc paraml mode pat_act_list pa
           (id, layout), (Lvar id, Alias, sort, layout))
         paraml
       |> List.split
+||||||| 121bedcfd2
+      { pm1 with cases = List.map (half_simplify_nonempty ~arg) pm1.cases }
+=======
+      { pm1 with
+        cases = List.map (half_simplify_nonempty ~arg) pm1.cases }
+>>>>>>> ocaml/trunk
     in
+<<<<<<< HEAD
+||||||| 121bedcfd2
+    let next, nexts = split_and_precompile_half_simplified ~arg pm1_half in
+    let size = List.length paraml
+    and idl = List.map (function
+      | Lvar id -> id
+      | _ -> Ident.create_local "*match*") paraml in
+    let args = List.map (fun id -> (Lvar id, Alias)) idl in
+=======
+    let next, nexts = split_and_precompile_half_simplified pm1_half in
+    let size = List.length idl in
+    let args = List.map (fun id -> root_arg (Lvar id) Alias) idl in
+>>>>>>> ocaml/trunk
     let flat_next = flatten_precompiled size args next
     and flat_nexts =
       List.map (fun (e, pm) -> (e, flatten_precompiled size args pm)) nexts
     in
+<<<<<<< HEAD
     let lam, total =
       comp_match_handlers return_layout
         (compile_flattened ~scopes return_layout repr) partial
@@ -4125,6 +5220,16 @@ let do_for_multiple_match ~scopes ~return_layout loc paraml mode pat_act_list pa
     in
     List.fold_right2 (bind_with_layout Strict) idl_with_layouts param_lambda lam,
     total
+||||||| 121bedcfd2
+    let lam, total =
+      comp_match_handlers (compile_flattened ~scopes repr) partial
+        (Context.start size) flat_next flat_nexts
+    in
+    List.fold_right2 (bind Strict) idl paraml lam, total
+=======
+    comp_match_handlers (compile_flattened ~scopes repr) partial
+      (Context.start size) flat_next flat_nexts
+>>>>>>> ocaml/trunk
   )
 
 (* PR#4828: Believe it or not, the 'paraml' argument below
@@ -4142,10 +5247,17 @@ let bind_opt (v, _, layout, eo) k =
 
 let for_multiple_match ~scopes ~return_layout loc paraml mode pat_act_list partial =
   let v_paraml = List.map param_to_var paraml in
+<<<<<<< HEAD
   let paraml =
     List.map (fun (v, sort, layout, _) -> (Lvar v, sort, layout)) v_paraml
   in
+||||||| 121bedcfd2
+  let paraml = List.map (fun (v, _) -> Lvar v) v_paraml in
+=======
+  let vl = List.map fst v_paraml in
+>>>>>>> ocaml/trunk
   List.fold_right bind_opt v_paraml
+<<<<<<< HEAD
     (do_for_multiple_match ~scopes ~return_layout loc paraml mode pat_act_list
        partial)
 
@@ -4196,3 +5308,22 @@ let () =
       | _ ->
         None
     )
+||||||| 121bedcfd2
+    (do_for_multiple_match ~scopes loc paraml pat_act_list partial)
+=======
+    (do_for_multiple_match ~scopes loc vl pat_act_list partial)
+
+let for_optional_arg_default ~scopes loc pat ~default_arg ~param body =
+  let supplied_or_default =
+    transl_match_on_option
+      (Lvar param)
+      Loc_unknown
+      ~if_none:default_arg
+      ~if_some:
+        (Lprim
+           (Pfield (0, Pointer, Immutable),
+            [ Lvar param ],
+            Loc_unknown))
+  in
+  for_let ~scopes loc supplied_or_default pat body
+>>>>>>> ocaml/trunk

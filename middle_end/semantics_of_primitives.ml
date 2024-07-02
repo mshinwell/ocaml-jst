@@ -149,10 +149,22 @@ let for_primitive (prim : Clambda_primitives.primitive) =
       (* Whether or not some of these are "unsafe" is irrelevant; they always
          have an effect. *)
       Arbitrary_effects, No_coeffects
+<<<<<<< HEAD
   | Pbswap16 -> No_effects, No_coeffects
   | Pbbswap (_,m) -> No_effects, coeffects_of m
   | Pint_as_pointer m -> No_effects, coeffects_of m
   | Popaque -> Arbitrary_effects, Has_coeffects
+||||||| 121bedcfd2
+  | Pbswap16
+  | Pbbswap _ -> No_effects, No_coeffects
+  | Pint_as_pointer -> No_effects, No_coeffects
+  | Popaque -> Arbitrary_effects, Has_coeffects
+=======
+  | Pbswap16
+  | Pbbswap _ -> No_effects, No_coeffects
+  | Pint_as_pointer -> No_effects, No_coeffects
+  | Popaque | Ppoll -> Arbitrary_effects, Has_coeffects
+>>>>>>> ocaml/trunk
   | Psequand
   | Psequor ->
       (* Removed by [Closure_conversion] in the flambda pipeline. *)

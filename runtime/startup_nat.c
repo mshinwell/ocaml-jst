@@ -39,7 +39,6 @@
 #include "caml/startup_aux.h"
 #include "caml/sys.h"
 
-extern int caml_parser_trace;
 extern char caml_system__code_begin, caml_system__code_end;
 /* The two symbols above are defined in runtime/$ARCH.S.
    They use the old `__` separator convention because the new convention
@@ -93,11 +92,18 @@ value caml_startup_common(char_os **argv, int pooling)
   /* Determine options */
   caml_parse_ocamlrunparam();
 
+<<<<<<< HEAD
 #ifdef DEBUG
   // Silenced in flambda-backend to make it easier to run tests that
   // check program output.
   // caml_gc_message (-1, "### OCaml runtime: debug mode ###\n");
 #endif
+||||||| 121bedcfd2
+#ifdef DEBUG
+  caml_gc_message (-1, "### OCaml runtime: debug mode ###\n");
+#endif
+=======
+>>>>>>> ocaml/trunk
   if (caml_params->cleanup_on_exit)
     pooling = 1;
   if (!caml_startup_aux(pooling))

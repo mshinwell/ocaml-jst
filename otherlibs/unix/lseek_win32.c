@@ -16,7 +16,7 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/signals.h>
-#include "unixsupport.h"
+#include "caml/unixsupport.h"
 
 #ifdef HAS_UNISTD
 #include <unistd.h>
@@ -26,7 +26,7 @@
 #define SEEK_END 2
 #endif
 
-static DWORD seek_command_table[] = {
+static const DWORD seek_command_table[] = {
   FILE_BEGIN, FILE_CURRENT, FILE_END
 };
 

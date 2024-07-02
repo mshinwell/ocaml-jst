@@ -81,6 +81,7 @@ let stack_threshold_size = Config.stack_threshold * 8 (* bytes *)
 *)
 
 let frame_size env =                     (* includes return address *)
+<<<<<<< HEAD
   if env.f.fun_frame_required then begin
     let sz =
       (env.stack_offset
@@ -90,6 +91,23 @@ let frame_size env =                     (* includes return address *)
     in
     if Config.runtime5 then sz else Misc.align sz 16
   end else
+||||||| 121bedcfd2
+  if env.f.fun_frame_required then begin
+    let sz =
+      (env.stack_offset
+       + 8 * (env.f.fun_num_stack_slots.(0) + env.f.fun_num_stack_slots.(1))
+       + 8
+       + (if fp then 8 else 0))
+    in Misc.align sz 16
+  end else
+=======
+  if env.f.fun_frame_required then
+    env.stack_offset
+    + 8 * (env.f.fun_num_stack_slots.(0) + env.f.fun_num_stack_slots.(1))
+    + 8
+    + (if fp then 8 else 0)
+  else
+>>>>>>> ocaml/trunk
     env.stack_offset + 8
 
 let slot_offset env loc cl =
@@ -602,7 +620,6 @@ let emit_instr env fallthrough i =
   match i.desc with
   | Lend -> ()
   | Lprologue ->
-    assert (env.f.fun_prologue_required);
     if fp then begin
       I.push rbp;
       cfi_adjust_cfa_offset 8;
@@ -670,8 +687,21 @@ let emit_instr env fallthrough i =
       end
   | Lop(Iextcall { func; alloc; stack_ofs }) ->
       add_used_symbol func;
+<<<<<<< HEAD
       if Config.runtime5 && stack_ofs > 0 then begin
         I.mov rsp r13;
+||||||| 121bedcfd2
+      let base_stack_size =
+        if Arch.win64 then
+          32 (* Windows x64 rcx+rdx+r8+r9 shadow stack *)
+        else
+          0 in
+      if stack_ofs > base_stack_size then begin
+        I.lea (mem64 QWORD base_stack_size RSP) r13;
+=======
+      if stack_ofs > 0 then begin
+        I.mov rsp r13;
+>>>>>>> ocaml/trunk
         I.lea (mem64 QWORD stack_ofs RSP) r12;
         load_symbol_addr func rax;
         emit_call "caml_c_call_stack_args";
@@ -931,9 +961,18 @@ let emit_instr env fallthrough i =
     I.set (cond (Iunsigned Cne)) (res8 i 0);
     I.movzx (res8 i 0) (res i 0)
   | Lop (Idls_get) ->
+<<<<<<< HEAD
     if Config.runtime5
     then I.mov (domain_field Domainstate.Domain_dls_root) (res i 0)
     else Misc.fatal_error "Idls_get not implemented in runtime4."
+||||||| 121bedcfd2
+      I.mov (domain_field Domainstate.Domain_dls_root) (res i 0)
+=======
+      I.mov (domain_field Domainstate.Domain_dls_root) (res i 0)
+  | Lop (Ireturn_addr) ->
+      let offset = frame_size env - 8 in
+      I.mov (mem64 QWORD offset RSP) (res i 0)
+>>>>>>> ocaml/trunk
   | Lreloadretaddr ->
       ()
   | Lreturn ->
@@ -1102,13 +1141,24 @@ let fundecl fundecl =
   cfi_startproc ();
   if !Clflags.runtime_variant = "d" then
     emit_call "caml_assert_stack_invariants";
+<<<<<<< HEAD
 (* BACKPORT
   let { max_frame_size; contains_nontail_calls} =
     preproc_stack_check
       ~fun_body:fundecl.fun_body ~frame_size:(frame_size env) ~trap_size:16
   in
+||||||| 121bedcfd2
+  let { max_frame_size; contains_nontail_calls} =
+    preproc_stack_check
+      ~fun_body:fundecl.fun_body ~frame_size:(frame_size env) ~trap_size:16
+  in
+=======
+  let max_frame_size =
+    frame_size env + fundecl.fun_extra_stack_used in
+>>>>>>> ocaml/trunk
   let handle_overflow =
-    if contains_nontail_calls || max_frame_size >= stack_threshold_size then begin
+    if fundecl.fun_contains_nontail_calls
+    || max_frame_size >= stack_threshold_size then begin
       let overflow = new_label () and ret = new_label () in
       let threshold_offset = Domainstate.stack_ctx_words * 8 + stack_threshold_size in
       I.lea (mem64 NONE (-(max_frame_size + threshold_offset)) RSP) r10;
@@ -1190,6 +1240,10 @@ let begin_assembly() =
     D.extrn "caml_alloc3" NEAR;
     D.extrn "caml_ml_array_bound_error" NEAR;
     D.extrn "caml_raise_exn" NEAR;
+    D.extrn "caml_call_realloc_stack" NEAR;
+    D.extrn "caml_reraise_exn" NEAR;
+    D.extrn "caml_c_call_stack_args" NEAR;
+    D.extrn "caml_assert_stack_invariants" NEAR;
   end;
 
 
@@ -1549,10 +1603,16 @@ let end_assembly() =
     D.size frametable (ConstSub (ConstThis, ConstLabel frametable))
   end;
 
+<<<<<<< HEAD
   D.data ();
   emit_probe_notes ();
 
   if system = S_linux then
+||||||| 121bedcfd2
+  if system = S_linux then
+=======
+  if system = S_linux || system = S_freebsd then
+>>>>>>> ocaml/trunk
     (* Mark stack as non-executable, PR#4564 *)
     D.section [".note.GNU-stack"] (Some "") [ "%progbits" ];
 

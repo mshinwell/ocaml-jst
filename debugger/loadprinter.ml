@@ -51,7 +51,7 @@ let rec loadfiles ppf name =
     true
   with
   | Dynlink.Error (Dynlink.Unavailable_unit unit) ->
-      loadfiles ppf (String.uncapitalize_ascii unit ^ ".cmo")
+      loadfiles ppf (Unit_info.normalize unit ^ ".cmo")
         &&
       loadfiles ppf name
   | Not_found ->
@@ -77,7 +77,9 @@ let rec eval_address = function
     in
     begin match Dynlink.unsafe_get_global_value ~bytecode_or_asm_symbol with
     | None ->
-      raise (Symtable.Error (Symtable.Undefined_global bytecode_or_asm_symbol))
+      raise (Symtable.Error (Symtable.Undefined_global
+        (Symtable.Global.Glob_compunit (Cmo_format.Compunit
+          bytecode_or_asm_symbol))))
     | Some obj -> obj
     end
   | Env.Alocal _ -> assert false
@@ -92,9 +94,19 @@ let eval_value_path env path =
 (* Install, remove a printer (as in toplevel/topdirs) *)
 
 let match_printer_type desc make_printer_type =
+<<<<<<< HEAD
   Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
     let ty_arg = Ctype.newvar (Jkind.Primitive.value ~why:Debug_printer_argument) in
     Ctype.unify (Lazy.force Env.initial)
+||||||| 121bedcfd2
+  Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
+    let ty_arg = Ctype.newvar() in
+    Ctype.unify Env.empty
+=======
+  Ctype.with_local_level_generalize begin fun () ->
+    let ty_arg = Ctype.newvar() in
+    Ctype.unify Env.empty
+>>>>>>> ocaml/trunk
       (make_printer_type ty_arg)
       (Ctype.instance desc.val_type);
     ty_arg
@@ -119,7 +131,8 @@ let install_printer ppf lid =
   let v =
     try
       eval_value_path Env.empty path
-    with Symtable.Error(Symtable.Undefined_global s) ->
+    with Symtable.Error(Symtable.Undefined_global global) ->
+      let s = Symtable.Global.name global in
       raise(Error(Unavailable_module(s, lid))) in
   let print_function =
     if is_old_style then
@@ -138,6 +151,9 @@ let remove_printer lid =
 (* Error report *)
 
 open Format
+module Style = Misc.Style
+let quoted_longident =
+  Format_doc.compat @@ Style.as_inline_code Printtyp.longident
 
 let report_error ppf = function
   | Load_failure e ->
@@ -145,15 +161,15 @@ let report_error ppf = function
         (Dynlink.error_message e)
   | Unbound_identifier lid ->
       fprintf ppf "@[Unbound identifier %a@]@."
-      Printtyp.longident lid
+        quoted_longident lid
   | Unavailable_module(md, lid) ->
       fprintf ppf
         "@[The debugger does not contain the code for@ %a.@ \
-           Please load an implementation of %s first.@]@."
-        Printtyp.longident lid md
+         Please load an implementation of %s first.@]@."
+        quoted_longident lid md
   | Wrong_type lid ->
       fprintf ppf "@[%a has the wrong type for a printing function.@]@."
-      Printtyp.longident lid
+        quoted_longident lid
   | No_active_printer lid ->
       fprintf ppf "@[%a is not currently active as a printing function.@]@."
-      Printtyp.longident lid
+        quoted_longident lid

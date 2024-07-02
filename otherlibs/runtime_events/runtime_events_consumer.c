@@ -34,6 +34,8 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <process.h>
 #include <processthreadsapi.h>
 #include <wtypes.h>
@@ -122,10 +124,8 @@ caml_runtime_events_create_cursor(const char_os* runtime_events_path, int pid,
   } else {
   /* In this case we are reading the ring for a different process */
     if (runtime_events_path) {
-      char* path_u8 = caml_stat_strdup_of_os(runtime_events_path);
       ret = snprintf_os(runtime_events_loc, RING_FILE_NAME_MAX_LEN,
-                      T("%s/%d.events"), path_u8, pid);
-      caml_stat_free(path_u8);
+                        T("%s/%d.events"), runtime_events_path, pid);
     } else {
       ret =
           snprintf_os(runtime_events_loc, RING_FILE_NAME_MAX_LEN,
@@ -187,7 +187,16 @@ caml_runtime_events_create_cursor(const char_os* runtime_events_path, int pid,
 
   cursor->ring_file_size_bytes = GetFileSize(cursor->ring_file_handle, NULL);
 #else
-  ring_fd = open(runtime_events_loc, O_RDONLY, 0);
+#if defined(__ARM_ARCH) && __ARM_ARCH <= 5
+  /* Atomic 64-bit load requires RW memory on Debian armel.  See:
+     https://github.com/ocaml/ocaml/issues/13234 */
+  const int open_flags = O_RDWR;
+  const int mmap_prot = PROT_READ | PROT_WRITE;
+#else
+  const int open_flags = O_RDONLY;
+  const int mmap_prot = PROT_READ;
+#endif
+  ring_fd = open(runtime_events_loc, open_flags, 0);
 
   if( ring_fd == -1 ) {
     caml_stat_free(cursor);
@@ -208,7 +217,7 @@ caml_runtime_events_create_cursor(const char_os* runtime_events_path, int pid,
   /* This cast is necessary for compatibility with Illumos' non-POSIX
     mmap/munmap */
   cursor->metadata = (struct runtime_events_metadata_header *)
-                      mmap(NULL, cursor->ring_file_size_bytes, PROT_READ,
+                      mmap(NULL, cursor->ring_file_size_bytes, mmap_prot,
                           MAP_SHARED, ring_fd, 0);
 
   if( cursor->metadata == MAP_FAILED ) {

@@ -47,12 +47,12 @@ void caml_garbage_collection(void)
 {
   frame_descr* d;
   caml_domain_state * dom_st = Caml_state;
-  caml_frame_descrs fds = caml_get_frame_descrs();
+  caml_frame_descrs * fds = caml_get_frame_descrs();
   struct stack_info* stack = dom_st->current_stack;
 
   char * sp = (char*)stack->sp;
-  Pop_frame_pointer(sp);
-  uintnat retaddr = *(uintnat*)sp;
+  sp = First_frame(sp);
+  uintnat retaddr = Saved_return_address(sp);
 
   /* Synchronise for the case when [young_limit] was used to interrupt
      us. */

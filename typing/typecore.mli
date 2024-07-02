@@ -60,6 +60,11 @@ type type_expected = private {
 }
 
 (* Variables in patterns *)
+type pattern_variable_kind =
+  | Std_var
+  | As_var
+  | Continuation_var
+
 type pattern_variable =
   {
     pv_id: Ident.t;
@@ -67,8 +72,9 @@ type pattern_variable =
     pv_mode: Mode.Value.l;
     pv_type: type_expr;
     pv_loc: Location.t;
-    pv_as_var: bool;
+    pv_kind: pattern_variable_kind;
     pv_attributes: Typedtree.attributes;
+    pv_uid : Uid.t;
   }
 
 val mk_expected:
@@ -111,11 +117,19 @@ type existential_restriction =
   | In_class_def (** or in [class c = let ... in ...] *)
   | In_self_pattern (** or in self pattern *)
 
+<<<<<<< HEAD
 type module_patterns_restriction =
   | Modules_allowed of { scope: int }
   | Modules_rejected
   | Modules_ignored
 
+||||||| 121bedcfd2
+type module_patterns_restriction =
+  | Modules_allowed of { scope : int }
+  | Modules_rejected
+
+=======
+>>>>>>> ocaml/trunk
 val type_binding:
         Env.t -> rec_flag ->
           ?force_toplevel:bool ->
@@ -157,7 +171,6 @@ val type_option_some:
 val type_option_none:
         Env.t -> type_expr -> Location.t -> Typedtree.expression
 val generalizable: int -> type_expr -> bool
-val generalize_structure_exp: Typedtree.expression -> unit
 val reset_delayed_checks: unit -> unit
 val force_delayed_checks: unit -> unit
 
@@ -182,10 +195,19 @@ val escape : loc:Location.t -> env:Env.t -> reason:submode_reason -> (Mode.allow
 
 val self_coercion : (Path.t * Location.t list ref) list ref
 
+<<<<<<< HEAD
 type contention_context =
   | Read_mutable
   | Write_mutable
 
+||||||| 121bedcfd2
+=======
+type existential_binding =
+  | Bind_already_bound
+  | Bind_not_in_scope
+  | Bind_non_locally_abstract
+
+>>>>>>> ocaml/trunk
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
   | Constructor_labeled_arg
@@ -252,13 +274,15 @@ type error =
   | Modules_not_allowed
   | Cannot_infer_signature
   | Not_a_packed_module of type_expr
-  | Unexpected_existential of existential_restriction * string * string list
+  | Unexpected_existential of existential_restriction * string
   | Invalid_interval
   | Invalid_for_loop_index
   | Invalid_comprehension_for_range_iterator_index
   | No_value_clauses
   | Exception_pattern_disallowed
   | Mixed_value_and_exception_patterns_under_guard
+  | Effect_pattern_below_toplevel
+  | Invalid_continuation_pattern
   | Inlined_record_escape
   | Inlined_record_expected
   | Unrefuted_pattern of Typedtree.pattern
@@ -280,6 +304,7 @@ type error =
   | Andop_type_clash of string * Errortrace.unification_error
   | Bindings_type_clash of Errortrace.unification_error
   | Unbound_existential of Ident.t list * type_expr
+  | Bind_existential of existential_binding * Ident.t * type_expr
   | Missing_type_constraint
   | Wrong_expected_kind of wrong_kind_sort * wrong_kind_context * type_expr
   | Expr_not_a_record_type of type_expr

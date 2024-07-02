@@ -1,6 +1,12 @@
 (* TEST
+<<<<<<< HEAD
  skip;
  toplevel;
+||||||| 121bedcfd2
+   * toplevel
+=======
+ toplevel;
+>>>>>>> ocaml/trunk
 *)
 
 (* https://github.com/ocaml-multicore/ocaml-multicore/issues/479 *)

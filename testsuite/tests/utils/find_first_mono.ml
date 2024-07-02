@@ -1,8 +1,20 @@
 (* TEST
+<<<<<<< HEAD
  include config;
  include testing;
  binary_modules = "config build_path_prefix_map misc";
  bytecode;
+||||||| 121bedcfd2
+include config
+include testing
+binary_modules = "config build_path_prefix_map misc"
+* bytecode
+=======
+ include config;
+ include testing;
+ binary_modules = "config build_path_prefix_map format_doc misc";
+ bytecode;
+>>>>>>> ocaml/trunk
 *)
 
 let check_and_count_calls n =

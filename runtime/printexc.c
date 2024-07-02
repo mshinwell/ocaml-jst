@@ -125,9 +125,15 @@ static void default_fatal_uncaught_exception(value exn, const char *msg2)
   saved_backtrace_pos = Caml_state->backtrace_pos;
   Caml_state->backtrace_active = 0;
   at_exit = caml_named_value("Pervasives.do_at_exit");
+<<<<<<< HEAD
   /* In the event of an asynchronous exception occurring, it will still get
      caught here, because of the semantics of [caml_callback_exn]. */
   if (at_exit != NULL) caml_callback_exn(*at_exit, Val_unit);
+||||||| 121bedcfd2
+  if (at_exit != NULL) caml_callback_exn(*at_exit, Val_unit);
+=======
+  if (at_exit != NULL) caml_callback_res(*at_exit, Val_unit);
+>>>>>>> ocaml/trunk
   Caml_state->backtrace_active = saved_backtrace_active;
   Caml_state->backtrace_pos = saved_backtrace_pos;
   /* Display the uncaught exception */
@@ -137,7 +143,7 @@ static void default_fatal_uncaught_exception(value exn, const char *msg2)
     fprintf(stderr, "Fatal error: exception %s\n", msg);
   caml_stat_free(msg);
   /* Display the backtrace if available */
-  if (Caml_state->backtrace_active && !DEBUGGER_IN_USE)
+  if (!DEBUGGER_IN_USE && Caml_state->backtrace_active)
     caml_print_exception_backtrace();
 }
 

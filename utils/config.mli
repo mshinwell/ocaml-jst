@@ -47,27 +47,26 @@ val c_has_debug_prefix_map : bool
 val as_has_debug_prefix_map : bool
 (** Whether the assembler supports --debug-prefix-map *)
 
-val ocamlc_cflags : string
+val bytecode_cflags : string
 (** The flags ocamlc should pass to the C compiler *)
 
-val ocamlc_cppflags : string
+val bytecode_cppflags : string
 (** The flags ocamlc should pass to the C preprocessor *)
 
-val ocamlopt_cflags : string
-  [@@ocaml.deprecated "Use ocamlc_cflags instead."]
-(** @deprecated {!ocamlc_cflags} should be used instead.
-    The flags ocamlopt should pass to the C compiler *)
+val native_cflags : string
+(** The flags ocamlopt should pass to the C compiler *)
 
-val ocamlopt_cppflags : string
-  [@@ocaml.deprecated "Use ocamlc_cppflags instead."]
-(** @deprecated {!ocamlc_cppflags} should be used instead.
-    The flags ocamlopt should pass to the C preprocessor *)
+val native_cppflags : string
+(** The flags ocamlopt should pass to the C preprocessor *)
 
 val bytecomp_c_libraries: string
 (** The C libraries to link with custom runtimes *)
 
 val native_c_libraries: string
 (** The C libraries to link with native-code programs *)
+
+val native_ldflags : string
+(* Flags to pass to the system linker *)
 
 val native_pack_linker: string
 (** The linker to use for packaging (ocamlopt -pack) and for partial
@@ -286,6 +285,7 @@ val poll_insertion : bool
 val ar_supports_response_files: bool
 (** Whether ar supports @FILE arguments. *)
 
+<<<<<<< HEAD
 val runtime5 : bool
 (** [true] if using the OCaml 5.x runtime, [false] if using the
     OCaml 4.14 runtime. *)
@@ -293,6 +293,12 @@ val runtime5 : bool
 val no_stack_checks : bool
 (** [true] if stack checks are disabled; used only if [runtime5] is [true]. *)
 
+||||||| 121bedcfd2
+=======
+val tsan : bool
+(** Whether ThreadSanitizer instrumentation is enabled *)
+
+>>>>>>> ocaml/trunk
 (** Access to configuration values *)
 val print_config : out_channel -> unit
 

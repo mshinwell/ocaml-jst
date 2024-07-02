@@ -36,7 +36,7 @@
 
 extern code_t caml_start_code;
 
-__thread intnat caml_icount = 0;
+CAMLthread_local intnat caml_icount = 0;
 
 void caml_stop_here (void)
 {
@@ -56,7 +56,7 @@ caml_event_trace(code_t pc)
      Caml_state->id,
      (long) (pc - caml_start_code),
      evi->ev_defname, evi->ev_filename,
-     evi->ev_lnum, evi->ev_startchr, evi->ev_endchr);
+     evi->ev_start_lnum, evi->ev_start_chr, evi->ev_end_offset);
   fflush (stdout);
 }
 
@@ -92,7 +92,7 @@ void caml_disasm_instr(code_t pc)
     /* Instructions with a C primitive as operand */
   case C_CALLN:
     snprintf(buf, sizeof(buf), "%s %d,", opbuf, pc[0]); pc++;
-    /* fallthrough */
+    fallthrough;
   case C_CALL1: case C_CALL2: case C_CALL3: case C_CALL4: case C_CALL5:
     if (pc[0] < 0 || pc[0] >= caml_prim_name_table.size)
       snprintf(buf, sizeof(buf), "%s unknown primitive %d\n", opbuf, pc[0]);

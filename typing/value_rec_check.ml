@@ -16,7 +16,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** Static checking of recursive declarations
+(** Static checking of recursive declarations, as described in
+
+      A practical mode system for recursive definitions
+      Alban Reynaud, Gabriel Scherer and Jeremy Yallop
+      POPL 2021
 
 Some recursive definitions are meaningful
 {[
@@ -146,6 +150,7 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_let (rec_flag, vb, e) ->
         let env = classify_value_bindings rec_flag env vb in
         classify_expression env e
+<<<<<<< HEAD
     | Texp_letmodule (Some mid, _, _, mexp, e) ->
         (* Note on module presence:
            For absent modules (i.e. module aliases), the module being bound
@@ -156,14 +161,38 @@ let classify_expression : Typedtree.expression -> sd =
         let env = Ident.add mid size env in
         classify_expression env e
     | Texp_ident (path, _, _, _, _) ->
+||||||| 121bedcfd2
+    | Texp_ident (path, _, _) ->
+=======
+    | Texp_letmodule (Some mid, _, _, mexp, e) ->
+        (* Note on module presence:
+           For absent modules (i.e. module aliases), the module being bound
+           does not have a physical representation, but its size can still be
+           derived from the alias itself, so we can reuse the same code as
+           for modules that are present. *)
+        let size = classify_module_expression env mexp in
+        let env = Ident.add mid size env in
+        classify_expression env e
+    | Texp_ident (path, _, _) ->
+>>>>>>> ocaml/trunk
         classify_path env path
 
     (* non-binding cases *)
     | Texp_open (_, e)
+<<<<<<< HEAD
     | Texp_letmodule (None, _, _, _, e)
     | Texp_sequence (_, _, e)
     | Texp_letexception (_, e)
     | Texp_exclave e ->
+||||||| 121bedcfd2
+    | Texp_letmodule (_, _, _, _, e)
+    | Texp_sequence (_, e)
+    | Texp_letexception (_, e) ->
+=======
+    | Texp_letmodule (None, _, _, _, e)
+    | Texp_sequence (_, e)
+    | Texp_letexception (_, e) ->
+>>>>>>> ocaml/trunk
         classify_expression env e
 
     | Texp_construct (_, {cstr_repr = Variant_unboxed}, [e], _) ->
@@ -179,6 +208,7 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_record _ ->
         Static
 
+<<<<<<< HEAD
     | Texp_variant _
     | Texp_tuple _
     | Texp_extension_constructor _
@@ -202,6 +232,27 @@ let classify_expression : Typedtree.expression -> sd =
         Static
 
     | Texp_apply ({exp_desc = Texp_ident (_, _, vd, Id_prim _, _)}, _, _, _, _)
+||||||| 121bedcfd2
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, _)
+=======
+    | Texp_variant _
+    | Texp_tuple _
+    | Texp_extension_constructor _
+    | Texp_constant _ ->
+        Static
+
+    | Texp_for _
+    | Texp_setfield _
+    | Texp_while _
+    | Texp_setinstvar _ ->
+        (* Unit-returning expressions *)
+        Static
+
+    | Texp_unreachable ->
+        Static
+
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, _)
+>>>>>>> ocaml/trunk
       when is_ref vd ->
         Static
     | Texp_apply (_, args, _, _, _)
@@ -264,7 +315,13 @@ let classify_expression : Typedtree.expression -> sd =
     let old_env = env in
     let add_value_binding env vb =
       match vb.vb_pat.pat_desc with
+<<<<<<< HEAD
       | Tpat_var (id, _loc, _uid, _mode) ->
+||||||| 121bedcfd2
+      | Tpat_var (id, _loc) ->
+=======
+      | Tpat_var (id, _loc, _uid) ->
+>>>>>>> ocaml/trunk
           let size = classify_expression old_env vb.vb_expr in
           Ident.add id size env
       | _ ->
@@ -619,8 +676,16 @@ let rec expression : Typedtree.expression -> term_judg =
       value_bindings rec_flag bindings >> expression body
     | Texp_letmodule (x, _, _, mexp, e) ->
       module_binding (x, mexp) >> expression e
+<<<<<<< HEAD
     | Texp_match (e, _, cases, _) ->
       (*
+||||||| 121bedcfd2
+    | Texp_match (e, cases, _) ->
+      (*
+=======
+    | Texp_match (e, cases, eff_cases, _) ->
+      (* TODO: update comment below for eff_cases
+>>>>>>> ocaml/trunk
          (Gi; mi |- pi -> ei : m)^i
          G |- e : sum(mi)^i
          ----------------------------------------------
@@ -630,8 +695,20 @@ let rec expression : Typedtree.expression -> term_judg =
         let pat_envs, pat_modes =
           List.split (List.map (fun c -> case c mode) cases) in
         let env_e = expression e (List.fold_left Mode.join Ignore pat_modes) in
+<<<<<<< HEAD
         Env.join_list (env_e :: pat_envs))
     | Texp_for tf ->
+||||||| 121bedcfd2
+        Env.join_list (env_e :: pat_envs))
+    | Texp_for (_, _, low, high, _, body) ->
+=======
+        let eff_envs, eff_modes =
+          List.split (List.map (fun c -> case c mode) eff_cases) in
+        let eff_e = expression e (List.fold_left Mode.join Ignore eff_modes) in
+        Env.join_list
+          ((Env.join_list (env_e :: pat_envs)) :: (eff_e :: eff_envs)))
+    | Texp_for (_, _, low, high, _, body) ->
+>>>>>>> ocaml/trunk
       (*
         G1 |- low: m[Dereference]
         G2 |- high: m[Dereference]
@@ -665,6 +742,7 @@ let rec expression : Typedtree.expression -> term_judg =
         G |- ref e: m
       *)
       expression arg << Guard
+<<<<<<< HEAD
     | Texp_apply (e, args, _, _, _)  ->
         let arg (_, arg) =
           match arg with
@@ -677,7 +755,37 @@ let rec expression : Typedtree.expression -> term_judg =
                   variables, which corresponds to a Guard mode. *)
             Guard
           else Dereference
+||||||| 121bedcfd2
+    | Texp_apply (e, args)  ->
+        let arg (_, eo) = option expression eo in
+        let app_mode = if List.exists is_abstracted_arg args
+          then (* see the comment on Texp_apply in typedtree.mli;
+                  the non-abstracted arguments are bound to local
+                  variables, which corresponds to a Guard mode. *)
+            Guard
+          else Dereference
+=======
+    | Texp_apply (e, args)  ->
+        (* [args] may contain omitted arguments, corresponding to labels in
+           the function's type that were not passed in the actual application.
+           The arguments before the first omitted argument are passed to the
+           function immediately, so they are dereferenced. The arguments after
+           the first omitted one are stored in a closure, so guarded.
+           The function itself is called immediately (dereferenced) if there
+           is at least one argument before the first omitted one.
+           On the other hand, if the first argument is omitted then the
+           function is stored in the closure without being called. *)
+        let rec split_args ~has_omitted_arg = function
+          | [] -> [], []
+          | (_, None) :: rest -> split_args ~has_omitted_arg:true rest
+          | (_, Some arg) :: rest ->
+            let applied, delayed = split_args ~has_omitted_arg rest in
+            if has_omitted_arg
+            then applied, arg :: delayed
+            else arg :: applied, delayed
+>>>>>>> ocaml/trunk
         in
+<<<<<<< HEAD
         join [expression e; list arg args] << app_mode
     | Texp_tuple (exprs, _) ->
       list expression (List.map snd exprs) << Guard
@@ -690,6 +798,53 @@ let rec expression : Typedtree.expression -> term_judg =
       join ((expression comp_body << array_mode exp elt_sort) ::
             comprehension_clauses comp_clauses)
     | Texp_construct (_, desc, exprs, _) ->
+||||||| 121bedcfd2
+        join [expression e; list arg args] << app_mode
+    | Texp_tuple exprs ->
+      list expression exprs << Guard
+    | Texp_array exprs ->
+      let array_mode = match Typeopt.array_kind exp with
+        | Lambda.Pfloatarray ->
+            (* (flat) float arrays unbox their elements *)
+            Dereference
+        | Lambda.Pgenarray ->
+            (* This is counted as a use, because constructing a generic array
+               involves inspecting to decide whether to unbox (PR#6939). *)
+            Dereference
+        | Lambda.Paddrarray | Lambda.Pintarray ->
+            (* non-generic, non-float arrays act as constructors *)
+            Guard
+      in
+      list expression exprs << array_mode
+    | Texp_construct (_, desc, exprs) ->
+=======
+        let applied, delayed = split_args ~has_omitted_arg:false args in
+        let function_mode =
+          match applied with
+          | [] -> Guard
+          | _ :: _ -> Dereference
+        in
+        join [expression e << function_mode;
+              list expression applied << Dereference;
+              list expression delayed << Guard]
+    | Texp_tuple exprs ->
+      list expression exprs << Guard
+    | Texp_array exprs ->
+      let array_mode = match Typeopt.array_kind exp with
+        | Lambda.Pfloatarray ->
+            (* (flat) float arrays unbox their elements *)
+            Dereference
+        | Lambda.Pgenarray ->
+            (* This is counted as a use, because constructing a generic array
+               involves inspecting to decide whether to unbox (PR#6939). *)
+            Dereference
+        | Lambda.Paddrarray | Lambda.Pintarray ->
+            (* non-generic, non-float arrays act as constructors *)
+            Guard
+      in
+      list expression exprs << array_mode
+    | Texp_construct (_, desc, exprs) ->
+>>>>>>> ocaml/trunk
       let access_constructor =
         match desc.cstr_tag with
         | Extension (pth, _) ->
@@ -847,7 +1002,7 @@ let rec expression : Typedtree.expression -> term_judg =
       modexp mexp
     | Texp_object (clsstrct, _) ->
       class_structure clsstrct
-    | Texp_try (e, cases) ->
+    | Texp_try (e, cases, eff_cases) ->
       (*
         G |- e: m      (Gi; _ |- pi -> ei : m)^i
         --------------------------------------------
@@ -861,6 +1016,7 @@ let rec expression : Typedtree.expression -> term_judg =
       join [
         expression e;
         list case_env cases;
+        list case_env eff_cases;
       ]
     | Texp_override (pth, fields) ->
       (*
@@ -878,7 +1034,13 @@ let rec expression : Typedtree.expression -> term_judg =
         path pth << Dereference;
         list field fields << Dereference;
       ]
+<<<<<<< HEAD
     | Texp_function { params; body } ->
+||||||| 121bedcfd2
+    | Texp_function { cases } ->
+=======
+    | Texp_function (params, body) ->
+>>>>>>> ocaml/trunk
       (*
          G      |-{body} b  : m[Delay]
          (Hj    |-{def}  Pj : m[Delay])^j
@@ -887,6 +1049,7 @@ let rec expression : Typedtree.expression -> term_judg =
          -----------------------------------
          G + H - ps |- fun (Pj)^j -> b : m
       *)
+<<<<<<< HEAD
         let param_pat param =
           (* param P ::=
               | ?(pat = expr)
@@ -926,6 +1089,51 @@ let rec expression : Typedtree.expression -> term_judg =
         (fun m ->
           let env = f m in
           remove_patlist patterns env)
+||||||| 121bedcfd2
+      let case_env c m = fst (case c m) in
+      list case_env cases << Delay
+=======
+      let param_pat param =
+        (* param P ::=
+            | ?(pat = expr)
+            | pat
+
+          Define pat(P) as
+              pat if P = ?(pat = expr)
+              pat if P = pat
+          *)
+        match param.fp_kind with
+        | Tparam_pat pat -> pat
+        | Tparam_optional_default (pat, _) -> pat
+      in
+      (* Optional argument defaults.
+
+          G |-{def} P : m
+      *)
+      let param_default param =
+        match param.fp_kind with
+        | Tparam_optional_default (_, default) ->
+          (*
+              G |- e : m
+              ------------------
+              G |-{def} ?(p=e) : m
+          *)
+            expression default
+        | Tparam_pat _ ->
+          (*
+              ------------------
+              . |-{def} p : m
+          *)
+            empty
+      in
+      let patterns = List.map param_pat params in
+      let defaults = List.map param_default params in
+      let body = function_body body in
+      let f = join (body :: defaults) << Delay in
+      (fun m ->
+         let env = f m in
+         remove_patlist patterns env)
+>>>>>>> ocaml/trunk
     | Texp_lazy e ->
       (*
         G |- e: m[Delay]
@@ -1006,6 +1214,35 @@ and comprehension_clauses clauses =
       | Texp_comp_when guard ->
           [expression guard << Dereference])
     clauses
+
+(* Function bodies.
+
+    G |-{body} b : m
+*)
+and function_body body =
+  match body with
+  | Tfunction_body body ->
+    (*
+        G |- e : m
+        ------------------
+        G |-{body} e : m (**)
+
+      (**) The "e" here stands for [Tfunction_body] as opposed to
+           [Tfunction_cases].
+    *)
+      expression body
+  | Tfunction_cases { cases; _ } ->
+    (*
+        (Gi; _ |- pi -> ei : m)^i    (**)
+        ------------------
+        sum(Gi)^i |-{body} function (pi -> ei)^i : m
+
+      (**) Contrarily to match, the values that are pattern-matched
+           are bound locally, so the pattern modes do not influence
+           the final environment.
+    *)
+      List.map (fun c mode -> fst (case c mode)) cases
+      |> join
 
 and binding_op : Typedtree.binding_op -> term_judg =
   fun bop ->
@@ -1384,8 +1621,16 @@ and pattern : type k . k general_pattern -> Env.t -> mode = fun pat env ->
 and is_destructuring_pattern : type k . k general_pattern -> bool =
   fun pat -> match pat.pat_desc with
     | Tpat_any -> false
+<<<<<<< HEAD
     | Tpat_var (_, _, _, _) -> false
     | Tpat_alias (pat, _, _, _, _) -> is_destructuring_pattern pat
+||||||| 121bedcfd2
+    | Tpat_var (_, _) -> false
+    | Tpat_alias (pat, _, _) -> is_destructuring_pattern pat
+=======
+    | Tpat_var (_, _, _) -> false
+    | Tpat_alias (pat, _, _, _) -> is_destructuring_pattern pat
+>>>>>>> ocaml/trunk
     | Tpat_constant _ -> true
     | Tpat_tuple _ -> true
     | Tpat_construct _ -> true

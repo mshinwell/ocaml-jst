@@ -141,6 +141,7 @@ module State = struct
     (* We start by drawing a non-negative integer in the [ [0, mask] ] range *)
     let r = Int64.to_int (next s) land mask in
     let v = r mod n in
+<<<<<<< HEAD
     (* For uniform distribution of the result between 0 included and [n]
      * excluded, the random number [r] must have been drawn uniformly in
      * an interval whose length is a multiple of [n]. To achieve this,
@@ -150,6 +151,19 @@ module State = struct
      * This is what the test below does, while carefuly avoiding
      * overflows and sparing a division [mask / n]. *)
     if r - v > mask - n + 1 then int_aux s n mask else v
+||||||| 121bedcfd2
+    if r - v > 0x3FFFFFFF - n + 1 then intaux s n else v
+=======
+    (* For uniform distribution of the result between 0 included and [n]
+     * excluded, the random number [r] must have been drawn uniformly in
+     * an interval whose length is a multiple of [n]. To achieve this,
+     * we use rejection sampling on the greatest interval [ [0, k*n-1] ]
+     * that fits in [ [0, mask] ].  That is, we reject the
+     * sample if it falls outside of this interval, and draw again.
+     * This is what the test below does, while carefully avoiding
+     * overflows and sparing a division [mask / n]. *)
+    if r - v > mask - n + 1 then int_aux s n mask else v
+>>>>>>> ocaml/trunk
 
   (* Return an integer between 0 (included) and [bound] (excluded).
      The bound must fit in 31-bit signed integers.

@@ -231,6 +231,10 @@ external runtime_parameters : unit -> string = "caml_runtime_parameters"
     as the contents of the [OCAMLRUNPARAM] environment variable.
     @since 4.03 *)
 
+external poll_actions : unit -> unit = "%poll"
+(** Run any pending runtime actions, such as minor collections, major
+    GC slices, signal handlers, finalizers, or memprof callbacks. *)
+
 
 (** {1 Signal handling} *)
 
@@ -354,11 +358,12 @@ val sigxfsz : int
 
 exception Break
 (** Exception raised on interactive interrupt if {!Sys.catch_break}
-   is on. *)
+   is enabled. *)
 
 
 val catch_break : bool -> unit
 (** [catch_break] governs whether interactive interrupt (ctrl-C)
+<<<<<<< HEAD
     terminates the program or raises the [Break] exception.
     Call [catch_break true] to enable raising [Break],
     and [catch_break false] to let the system
@@ -378,6 +383,23 @@ val with_async_exns : (unit -> 'a) -> 'a
     The asynchronous exception handler context is per-domain, not per-fiber:
     delimited continuations do not capture it.
 *)
+||||||| 121bedcfd2
+   terminates the program or raises the [Break] exception.
+   Call [catch_break true] to enable raising [Break],
+   and [catch_break false] to let the system
+   terminate the program on user interrupt. *)
+=======
+   terminates the program or raises the [Break] exception.
+   Call [catch_break true] to enable raising [Break],
+   and [catch_break false] to let the system
+   terminate the program on user interrupt.
+
+   Inside multi-threaded programs, the [Break] exception will arise in
+   any one of the active threads, and will keep arising on further
+   interactive interrupt until all threads are terminated. Use
+   signal masks from [Thread.sigmask] to direct the interrupt towards a
+   specific thread. *)
+>>>>>>> ocaml/trunk
 
 
 val ocaml_version : string

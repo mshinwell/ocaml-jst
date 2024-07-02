@@ -39,13 +39,29 @@ val type_toplevel_phrase:
   Typedtree.structure * Types.signature * Signature_names.t * Shape.t *
   Env.t
 val type_implementation:
+<<<<<<< HEAD
   sourcefile:string -> string -> Compilation_unit.t -> Env.t ->
   Parsetree.structure -> Typedtree.implementation
+||||||| 121bedcfd2
+  string -> string -> string -> Env.t ->
+  Parsetree.structure -> Typedtree.implementation
+=======
+  Unit_info.t -> Env.t -> Parsetree.structure ->
+  Typedtree.implementation
+>>>>>>> ocaml/trunk
 val type_interface:
+<<<<<<< HEAD
   sourcefile:string -> Compilation_unit.t -> Env.t ->
   Parsetree.signature -> Typedtree.signature
 val transl_signature:
         Env.t -> Parsetree.signature -> Typedtree.signature
+||||||| 121bedcfd2
+        Env.t -> Parsetree.signature -> Typedtree.signature
+val transl_signature:
+        Env.t -> Parsetree.signature -> Typedtree.signature
+=======
+        Env.t -> Parsetree.signature -> Typedtree.signature
+>>>>>>> ocaml/trunk
 val check_nongen_signature:
         Env.t -> Types.signature -> unit
         (*
@@ -61,11 +77,25 @@ val modtype_of_package:
 val path_of_module : Typedtree.module_expr -> Path.t option
 
 val save_signature:
+<<<<<<< HEAD
   Compilation_unit.t -> Typedtree.signature -> string -> string ->
   Env.t -> Cmi_format.cmi_infos_lazy -> unit
+||||||| 121bedcfd2
+  string -> Typedtree.signature -> string -> string ->
+  Env.t -> Cmi_format.cmi_infos -> unit
+=======
+  Unit_info.t -> Typedtree.signature -> Env.t ->
+  Cmi_format.cmi_infos -> unit
+>>>>>>> ocaml/trunk
 
 val package_units:
+<<<<<<< HEAD
   Env.t -> string list -> string -> Compilation_unit.t -> Typedtree.module_coercion
+||||||| 121bedcfd2
+  Env.t -> string list -> string -> string -> Typedtree.module_coercion
+=======
+  Env.t -> string list -> Unit_info.Artifact.t -> Typedtree.module_coercion
+>>>>>>> ocaml/trunk
 
 (* Should be in Envaux, but it breaks the build of the debugger *)
 val initial_env:
@@ -148,6 +178,7 @@ type error =
   | Invalid_type_subst_rhs
   | Unpackable_local_modtype_subst of Path.t
   | With_cannot_remove_packed_modtype of Path.t * module_type
+<<<<<<< HEAD
   | Toplevel_nonvalue of string * Jkind.sort
   | Strengthening_mismatch of Longident.t * Includemod.explanation
   | Cannot_pack_parameter
@@ -161,6 +192,10 @@ type error =
       old_source_file: Misc.filepath;
     }
   | Submode_failed of Mode.Value.error
+||||||| 121bedcfd2
+=======
+  | Cannot_alias of Path.t
+>>>>>>> ocaml/trunk
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

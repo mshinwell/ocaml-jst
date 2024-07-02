@@ -39,6 +39,7 @@ CAMLextern value caml_alloc_shr_reserved (mlsize_t, tag_t, reserved_t);
 CAMLextern value caml_alloc_local(mlsize_t, tag_t);
 
 CAMLextern void caml_adjust_gc_speed (mlsize_t, mlsize_t);
+CAMLextern void caml_adjust_minor_gc_speed (mlsize_t, mlsize_t);
 CAMLextern void caml_alloc_dependent_memory (mlsize_t bsz);
 CAMLextern void caml_free_dependent_memory (mlsize_t bsz);
 CAMLextern void caml_modify (volatile value *, value);
@@ -383,6 +384,17 @@ struct caml__roots_block {
     0) \
   CAMLunused_end
 
+#define CAMLxparamresult(x) \
+  struct caml__roots_block caml__roots_##x; \
+  CAMLunused_start int caml__dummy_##x = ( \
+    (caml__roots_##x.next = *caml_local_roots_ptr), \
+    (*caml_local_roots_ptr = &caml__roots_##x), \
+    (caml__roots_##x.nitems = 1), \
+    (caml__roots_##x.ntables = 1), \
+    (caml__roots_##x.tables [0] = &(x.data)), \
+    0) \
+   CAMLunused_end
+
 #define CAMLlocal1(x) \
   value x = Val_unit; \
   CAMLxparam1 (x)
@@ -410,6 +422,10 @@ struct caml__roots_block {
   for (caml__i_##x = 0; caml__i_##x < size; caml__i_##x ++) { \
     x[caml__i_##x] = Val_unit; \
   }
+
+#define CAMLlocalresult(res) \
+  caml_result res = Result_unit; \
+  CAMLxparamresult (res)
 
 #define CAMLdrop do{              \
   (void)caml__missing_CAMLreturn; \

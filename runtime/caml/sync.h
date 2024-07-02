@@ -21,14 +21,23 @@
 #ifdef CAML_INTERNALS
 
 #include "mlvalues.h"
+#include "platform.h"
 
-typedef pthread_mutex_t * sync_mutex;
+/* OCaml mutexes and condition variables can also be manipulated from
+   C code with non-raising primitives from caml/platform.h. In this
+   case, pairs of lock/unlock for a critical section must come from
+   the same header (sync.h or platform.h). */
+
+typedef caml_plat_mutex * sync_mutex;
+typedef caml_plat_cond * sync_condvar;
 
 #define Mutex_val(v) (* ((sync_mutex *) Data_custom_val(v)))
+#define Condition_val(v) (* (sync_condvar *) Data_custom_val(v))
 
 CAMLextern int caml_mutex_lock(sync_mutex mut);
 CAMLextern int caml_mutex_unlock(sync_mutex mut);
 
+<<<<<<< HEAD
 /* If we're using glibc, use a custom condition variable implementation to
    avoid this bug: https://sourceware.org/bugzilla/show_bug.cgi?id=25847
 
@@ -44,6 +53,13 @@ typedef pthread_cond_t custom_condvar;
 #define CUSTOM_COND_INITIALIZER PTHREAD_COND_INITIALIZER
 #endif
 
+||||||| 121bedcfd2
+=======
+value caml_ml_mutex_lock(value wrapper);
+value caml_ml_mutex_unlock(value wrapper);
+value caml_ml_condition_broadcast(value wrapper);
+
+>>>>>>> ocaml/trunk
 #endif /* CAML_INTERNALS */
 
 #endif /* CAML_SYNC_H */

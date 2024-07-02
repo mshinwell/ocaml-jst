@@ -28,6 +28,7 @@ m4_include([build-aux/ltversion.m4])
 m4_include([build-aux/lt~obsolete.m4])
 
 # Macros from the autoconf macro archive
+m4_include([build-aux/ax_check_compile_flag.m4])
 m4_include([build-aux/ax_func_which_gethostbyname_r.m4])
 m4_include([build-aux/ax_pthread.m4])
 m4_include([build-aux/ax_check_compile_flag.m4])
@@ -47,8 +48,19 @@ AC_DEFUN([OCAML_CC_VENDOR], [
     [AC_LANG_SOURCE([
 #if defined(_MSC_VER)
 msvc _MSC_VER
+# if defined(__clang_major__) && defined(__clang_minor__)
+  clang __clang_major__ __clang_minor__
+# endif
 #elif defined(__INTEL_COMPILER)
 icc __INTEL_COMPILER
+#elif defined(__MINGW32__)
+#include <_mingw_mac.h>
+mingw __MINGW64_VERSION_MAJOR __MINGW64_VERSION_MINOR
+# if defined(__clang_major__) && defined(__clang_minor__)
+  clang __clang_major__ __clang_minor__
+# elif defined(__GNUC__) && defined(__GNUC_MINOR__)
+  gcc __GNUC__ __GNUC_MINOR__
+# endif
 #elif defined(__clang_major__) && defined(__clang_minor__)
 clang __clang_major__ __clang_minor__
 #elif defined(__GNUC__) && defined(__GNUC_MINOR__)
@@ -61,11 +73,14 @@ sunc __SUNPRO_C __SUNPRO_C
 unknown
 #endif]
     )],
-    [AC_CACHE_VAL([ocaml_cv_cc_vendor],
-      [ocaml_cv_cc_vendor=`grep ['^[a-z]'] conftest.i | tr -s ' ' '-' \
-                                                      | tr -d '\r'`])],
+    [AC_CACHE_VAL([ocaml_cv_cc_vendor2],
+      [ocaml_cv_cc_vendor2=`sed -e '/^#/d' conftest.i | tr -s '[:space:]' '-' \
+                             | sed -e 's/^-//' -e 's/-$//'`])
+    # Domain of values was changed in #12768, so the cache key became different
+    # from the variable
+    ocaml_cc_vendor="$ocaml_cv_cc_vendor2"],
     [AC_MSG_FAILURE([unexpected preprocessor failure])])
-  AC_MSG_RESULT([$ocaml_cv_cc_vendor])
+  AC_MSG_RESULT([$ocaml_cc_vendor])
 ])
 
 AC_DEFUN([OCAML_SIGNAL_HANDLERS_SEMANTICS], [
@@ -73,31 +88,18 @@ AC_DEFUN([OCAML_SIGNAL_HANDLERS_SEMANTICS], [
   AC_CHECK_FUNC([sigaction], [has_sigaction=true], [has_sigaction=false])
   AC_CHECK_FUNC([sigprocmask], [has_sigprocmask=true], [has_sigprocmask=false])
   AS_IF([$has_sigaction && $has_sigprocmask],
-    [AC_DEFINE([POSIX_SIGNALS])
+    [AC_DEFINE([POSIX_SIGNALS], [1])
       AC_MSG_NOTICE([POSIX signal handling found.])],
     [AC_MSG_NOTICE([assuming signals have the System V semantics.])
     ]
   )
 ])
 
-AC_DEFUN([OCAML_CC_HAS_FNO_TREE_VRP], [
-  AC_MSG_CHECKING([whether the C compiler supports -fno-tree-vrp])
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="-Werror -fno-tree-vrp $CFLAGS"
-  AC_COMPILE_IFELSE(
-    [AC_LANG_SOURCE([int main() { return 0; }])],
-    [cc_has_fno_tree_vrp=true
-    AC_MSG_RESULT([yes])],
-    [cc_has_fno_tree_vrp=false
-    AC_MSG_RESULT([no])])
-  CFLAGS="$saved_CFLAGS"
-])
-
 AC_DEFUN([OCAML_CC_SUPPORTS_ALIGNED], [
   AC_MSG_CHECKING([whether the C compiler supports __attribute__((aligned(n)))])
   AC_COMPILE_IFELSE(
     [AC_LANG_SOURCE([typedef struct {__attribute__((aligned(8))) int t;} t;])],
-    [AC_DEFINE([SUPPORTS_ALIGNED_ATTRIBUTE])
+    [AC_DEFINE([SUPPORTS_ALIGNED_ATTRIBUTE], [1])
     AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])])])
 
@@ -107,39 +109,12 @@ AC_DEFUN([OCAML_CC_SUPPORTS_TREE_VECTORIZE], [
   saved_CFLAGS="$CFLAGS"
   CFLAGS="-Werror $CFLAGS"
   AC_COMPILE_IFELSE(
-    [AC_LANG_SOURCE([
-       __attribute__((optimize("tree-vectorize"))) void f(void){}
-       int main() { f(); return 0; }
-    ])],
-    [AC_DEFINE([SUPPORTS_TREE_VECTORIZE])
+    [AC_LANG_PROGRAM(
+      [[__attribute__((optimize("tree-vectorize"))) void f(void) {}]],
+      [[f();]])],
+    [AC_DEFINE([SUPPORTS_TREE_VECTORIZE], [1])
     AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])])
-  CFLAGS="$saved_CFLAGS"
-])
-
-AC_DEFUN([OCAML_CC_HAS_DEBUG_PREFIX_MAP], [
-  AC_MSG_CHECKING([whether the C compiler supports -fdebug-prefix-map])
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="-fdebug-prefix-map=old=new $CFLAGS"
-  AC_COMPILE_IFELSE(
-    [AC_LANG_SOURCE([int main() { return 0; }])],
-    [cc_has_debug_prefix_map=true
-    AC_MSG_RESULT([yes])],
-    [cc_has_debug_prefix_map=false
-    AC_MSG_RESULT([no])])
-  CFLAGS="$saved_CFLAGS"
-])
-
-AC_DEFUN([OCAML_CL_HAS_VOLATILE_METADATA], [
-  AC_MSG_CHECKING([whether the C compiler supports -d2VolatileMetadata-])
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="-d2VolatileMetadata- $CFLAGS"
-  AC_COMPILE_IFELSE(
-    [AC_LANG_SOURCE([int main() { return 0; }])],
-    [cl_has_volatile_metadata=true
-    AC_MSG_RESULT([yes])],
-    [cl_has_volatile_metadata=false
-    AC_MSG_RESULT([no])])
   CFLAGS="$saved_CFLAGS"
 ])
 
@@ -189,7 +164,7 @@ camlPervasives__loop_1128:
     ])],
     [as_has_debug_prefix_map=true
     AC_MSG_RESULT([yes])],
-    [ashas_debug_prefix_map=false
+    [as_has_debug_prefix_map=false
     AC_MSG_RESULT([no])])
 
   OCAML_CC_RESTORE_VARIABLES
@@ -241,7 +216,7 @@ camlPervasives__loop_1128:
 
     AS_IF([$aspp_ok && $as_ok],
       [asm_cfi_supported=true
-      AC_DEFINE([ASM_CFI_SUPPORTED])
+      AC_DEFINE([ASM_CFI_SUPPORTED], [1])
       AC_MSG_RESULT([yes])],
       [AS_IF([test x"$enable_cfi" = "xyes"],
         [AC_MSG_RESULT([requested but not available
@@ -253,20 +228,17 @@ camlPervasives__loop_1128:
 AC_DEFUN([OCAML_MMAP_SUPPORTS_MAP_STACK], [
   AC_MSG_CHECKING([whether mmap supports MAP_STACK])
   AC_RUN_IFELSE(
-    [AC_LANG_SOURCE([[
+    [AC_LANG_PROGRAM([[
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-int main (int argc, char *argv[]){
+      ]],[[
   void *block;
   block = mmap (NULL, 4096, PROT_READ | PROT_WRITE,
                 MAP_ANONYMOUS | MAP_PRIVATE | MAP_STACK,
                 -1, 0);
   if (block == MAP_FAILED)
      return 1;
-  return 0;
-}
     ]])],
     [has_mmap_map_stack=true
     AC_MSG_RESULT([yes])],
@@ -277,7 +249,7 @@ int main (int argc, char *argv[]){
 AC_DEFUN([OCAML_MMAP_SUPPORTS_HUGE_PAGES], [
   AC_MSG_CHECKING([whether mmap supports huge pages])
   AC_RUN_IFELSE(
-    [AC_LANG_SOURCE([[
+    [AC_LANG_PROGRAM([[
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -290,8 +262,7 @@ AC_DEFUN([OCAML_MMAP_SUPPORTS_HUGE_PAGES], [
    pages can be activated and deactivated easily while the system
    is running.
 */
-
-int main (int argc, char *argv[]){
+      ]],[[
   void *block;
   char *p;
   int i, res;
@@ -312,10 +283,8 @@ int main (int argc, char *argv[]){
   for (i = 0; i < huge_page_size; i += 4096){
     p[i] = (char) i;
   }
-  return 0;
-}
     ]])],
-    [AC_DEFINE([HAS_HUGE_PAGES])
+    [AC_DEFINE([HAS_HUGE_PAGES], [1])
     AC_DEFINE_UNQUOTED([HUGE_PAGE_SIZE], [(4 * 1024 * 1024)])
     AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])],
@@ -323,16 +292,16 @@ int main (int argc, char *argv[]){
 ])
 
 AC_DEFUN([OCAML_CHECK_LIBUNWIND], [
-  SAVED_CFLAGS="$CFLAGS"
+  SAVED_CPPFLAGS="$CPPFLAGS"
   SAVED_LDFLAGS="$LDFLAGS"
-  CFLAGS="$CFLAGS $libunwind_include_flags"
-  LDFLAGS="$LDFLAGS $libunwind_link_flags"
+  CPPFLAGS="$CPPFLAGS $libunwind_cppflags"
+  LDFLAGS="$LDFLAGS $libunwind_ldflags"
   AC_CHECK_HEADER([libunwind.h],
-    [AC_DEFINE([HAS_LIBUNWIND])
+    [AC_DEFINE([HAS_LIBUNWIND], [1])
     libunwind_available=true],
     [libunwind_available=false])
   LDFLAGS="$SAVED_LDFLAGS"
-  CFLAGS="$SAVED_CFLAGS"
+  CPPFLAGS="$SAVED_CPPFLAGS"
 ])
 
 AC_DEFUN([OCAML_TEST_FLEXLINK], [
@@ -355,7 +324,7 @@ AC_DEFUN([OCAML_TEST_FLEXLINK], [
     CPPFLAGS="$3 $CPPFLAGS"
     CFLAGS=""
     AC_LINK_IFELSE(
-      [AC_LANG_SOURCE([int main() { return 0; }])],
+      [AC_LANG_PROGRAM],
       [AC_MSG_RESULT([yes])],
       [AC_MSG_RESULT([no])
       AC_MSG_ERROR([$1 does not work])])],
@@ -385,8 +354,7 @@ AC_DEFUN([OCAML_TEST_FLEXLINK_WHERE], [
   flexlink_where="$($1 -where | tr -d '\r')"
   CPPFLAGS="$CPPFLAGS -I \"$flexlink_where\""
   cat > conftest.c <<"EOF"
-#include <flexdll.h>
-int main (void) {return 0;}
+  AC_LANG_PROGRAM([[#include <flexdll.h>]])
 EOF
   cat > conftest.Makefile <<EOF
 all:
@@ -400,12 +368,22 @@ EOF
   OCAML_CC_RESTORE_VARIABLES
 ])
 
+AC_DEFUN([OCAML_TEST_WINPTHREADS_PTHREAD_H], [
+  OCAML_CC_SAVE_VARIABLES
+
+  AS_IF([test -n "$1"],[CPPFLAGS="-I $1 $CPPFLAGS"])
+  AC_CHECK_HEADER([pthread.h],[],
+    [AC_MSG_ERROR([cannot find or use pthread.h from winpthreads])])
+
+  OCAML_CC_RESTORE_VARIABLES
+])
+
 AC_DEFUN([OCAML_HOST_IS_EXECUTABLE], [
   AC_MSG_CHECKING([whether host executables can be run in the build])
   old_cross_compiling="$cross_compiling"
   cross_compiling='no'
   AC_RUN_IFELSE(
-    [AC_LANG_SOURCE([[int main (void) {return 0;}]])],
+    [AC_LANG_PROGRAM],
     [AC_MSG_RESULT([yes])
     host_runnable=true],
     [AC_MSG_RESULT([no])
@@ -428,15 +406,12 @@ AC_DEFUN([OCAML_RUN_IFELSE], [
 AC_DEFUN([OCAML_C99_CHECK_ROUND], [
   AC_MSG_CHECKING([whether round works])
   OCAML_RUN_IFELSE(
-    [AC_LANG_SOURCE([[
-#include <math.h>
-int main (void) {
+    [AC_LANG_PROGRAM([[#include <math.h>]],[[
   static volatile double d = 0.49999999999999994449;
-  return (fpclassify(round(d)) != FP_ZERO);
-}
+  if (fpclassify(round(d)) != FP_ZERO) return 1;
     ]])],
     [AC_MSG_RESULT([yes])
-    AC_DEFINE([HAS_WORKING_ROUND])],
+    AC_DEFINE([HAS_WORKING_ROUND], [1])],
     [AC_MSG_RESULT([no])
     AS_CASE([$enable_imprecise_c99_float_ops,$target],
       [no,*], [hard_error=true],
@@ -452,15 +427,13 @@ int main (void) {
     [AS_CASE([$target],
       [x86_64-w64-mingw32*],[AC_MSG_RESULT([cross-compiling; assume not])],
       [AC_MSG_RESULT([cross-compiling; assume yes])
-      AC_DEFINE([HAS_WORKING_ROUND])])])
+      AC_DEFINE([HAS_WORKING_ROUND], [1])])])
 ])
 
 AC_DEFUN([OCAML_C99_CHECK_FMA], [
   AC_MSG_CHECKING([whether fma works])
   OCAML_RUN_IFELSE(
-    [AC_LANG_SOURCE([[
-#include <math.h>
-int main (void) {
+    [AC_LANG_PROGRAM([[#include <math.h>]],[[
   /* Tests 264-266 from testsuite/tests/fma/fma.ml. These tests trigger the
      broken implementations of Cygwin64, mingw-w64 (x86_64) and VS2013-2017.
      The static volatile variables aim to thwart GCC's constant folding. */
@@ -478,24 +451,24 @@ int main (void) {
   y = 0x4p-540;
   z = 0x4p-1076;
   t266 = fma(x, y, z);
-  return (!(t264 == 0x1.0989687cp-1044 ||
-            t264 == 0x0.000004277ca1fp-1022 || /* Acceptable emulated values */
-            t264 == 0x0.00000428p-1022)
-       || !(t265 == 0x1.0988p-1060 ||
-            t265 == 0x0.0000000004278p-1022 ||  /* Acceptable emulated values */
-            t265 == 0x0.000000000428p-1022)
-       || !(t266 == 0x8p-1076));
-}
+  if (!(t264 == 0x1.0989687cp-1044 ||
+        t264 == 0x0.000004277ca1fp-1022 || /* Acceptable emulated values */
+        t264 == 0x0.00000428p-1022)
+   || !(t265 == 0x1.0988p-1060 ||
+        t265 == 0x0.0000000004278p-1022 ||  /* Acceptable emulated values */
+        t265 == 0x0.000000000428p-1022)
+   || !(t266 == 0x8p-1076))
+    return 1;
     ]])],
     [AC_MSG_RESULT([yes])
-    AC_DEFINE([HAS_WORKING_FMA])],
+    AC_DEFINE([HAS_WORKING_FMA], [1])],
     [AC_MSG_RESULT([no])
     AS_CASE([$enable_imprecise_c99_float_ops,$target],
       [no,*], [hard_error=true],
       [yes,*], [hard_error=false],
       [*,x86_64-w64-mingw32*|*,x86_64-*-cygwin*], [hard_error=false],
-      [AS_CASE([$ocaml_cv_cc_vendor],
-        [msvc-*], [AS_IF([test "${ocaml_cv_cc_vendor#msvc-}" -lt 1920 ],
+      [AS_CASE([$ocaml_cc_vendor],
+        [msvc-*], [AS_IF([test "${ocaml_cc_vendor#msvc-}" -lt 1920 ],
           [hard_error=false],
           [hard_error=true])],
         [hard_error=true])])
@@ -509,7 +482,7 @@ int main (void) {
       [x86_64-w64-mingw32*|x86_64-*-cygwin*],
         [AC_MSG_RESULT([cross-compiling; assume not])],
       [AC_MSG_RESULT([cross-compiling; assume yes])
-      AC_DEFINE([HAS_WORKING_FMA])])])
+      AC_DEFINE([HAS_WORKING_FMA], [1])])])
 ])
 
 # Computes a suitable id to insert in quoted strings to ensure that all OCaml
@@ -537,25 +510,49 @@ AC_DEFUN([OCAML_QUOTED_STRING_ID], [
 ])
 
 AC_DEFUN([OCAML_CC_SUPPORTS_ATOMIC], [
-  AC_MSG_CHECKING([whether the C compiler supports _Atomic types])
-  saved_LIBS="$LIBS"
-  LIBS="$LIBS $1"
-  AC_LINK_IFELSE([AC_LANG_SOURCE([[
-    #include <stdint.h>
-    #include <stdatomic.h>
-    int main(void)
-    {
-      _Atomic int64_t n;
-      int m;
-      int * _Atomic p = &m;
-      atomic_store_explicit(&n, 123, memory_order_release);
-      * atomic_exchange(&p, 0) = 45;
-      return atomic_load_explicit(&n, memory_order_acquire);
-    }
-    ]])],
+  OCAML_CC_SAVE_VARIABLES
+
+  opts=""
+  AS_IF([test -n "$1"],[CFLAGS="$CFLAGS $1"; opts="$1"])
+  AS_IF([test -n "$2"],[LIBS="$LIBS $2"; opts="${opts:+$opts }$2"])
+  AC_MSG_CHECKING(m4_normalize([if $CC supports _Atomic types with
+    ${opts:-no additional options}]))
+
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <stdint.h>
+#include <stdatomic.h>
+    ]],[[
+  _Atomic int64_t n;
+  int m;
+  int * _Atomic p = &m;
+  atomic_store_explicit(&n, 123, memory_order_release);
+  * atomic_exchange(&p, 0) = 45;
+  if (atomic_load_explicit(&n, memory_order_acquire))
+    return 1;
+  ]])],
   [cc_supports_atomic=true
    AC_MSG_RESULT([yes])],
   [cc_supports_atomic=false
    AC_MSG_RESULT([no])])
-  LIBS="$saved_LIBS"
+
+  OCAML_CC_RESTORE_VARIABLES
+])
+
+AC_DEFUN([OCAML_CC_SUPPORTS_LABELS_AS_VALUES], [
+  AC_CACHE_CHECK([whether $CC supports the labels as values extension],
+    [ocaml_cv_prog_cc_labels_as_values],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+  void *ptr;
+  ptr = &&foo;
+  goto *ptr;
+  return 1;
+  foo:
+     ]])],
+       [ocaml_cv_prog_cc_labels_as_values=yes],
+       [ocaml_cv_prog_cc_labels_as_values=no])
+  ])
+  if test "x$ocaml_cv_prog_cc_labels_as_values" = xyes; then
+    AC_DEFINE([HAVE_LABELS_AS_VALUES], [1],
+      [Define if the C compiler supports the labels as values extension.])
+  fi
 ])

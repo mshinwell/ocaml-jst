@@ -192,9 +192,14 @@ let convert (prim : Lambda.primitive) : Clambda_primitives.primitive =
   | Pbox_int (bi, m) -> Pbox_int (bi, m)
   | Pget_header m -> Pget_header m
   | Pdls_get -> Pdls_get
+<<<<<<< HEAD
   | Pfloat32offloat _
   | Pfloatoffloat32 _
   | Pobj_magic _
+||||||| 121bedcfd2
+=======
+  | Ppoll -> Ppoll
+>>>>>>> ocaml/trunk
   | Pbytes_to_string
   | Pbytes_of_string
   | Pctconst _

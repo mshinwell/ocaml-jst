@@ -24,10 +24,6 @@ open Reg
 open Arch
 open Mach
 
-(* Instruction selection *)
-
-let word_addressed = false
-
 (* Registers available for register allocation *)
 
 (* Integer register map:
@@ -294,15 +290,6 @@ let max_register_pressure = function
   | Iintoffloat | Ifloatofint
   | Iload{memory_chunk=Single; _} | Istore(Single, _, _) -> [| 23; 31 |]
   | _ -> [| 23; 32 |]
-
-(* Layout of the stack *)
-let frame_required fd =
-  fd.fun_contains_calls
-    || fd.fun_num_stack_slots.(0) > 0
-    || fd.fun_num_stack_slots.(1) > 0
-
-let prologue_required fd =
-  frame_required fd
 
 (* Calling the assembler *)
 

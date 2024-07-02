@@ -50,12 +50,7 @@
 #include <stddef.h>
 
 /* Size of struct lf_skipcell, in bytes, without the forward array */
-#if (__STDC_VERSION__ >= 199901L)
 #define SIZEOF_LF_SKIPCELL sizeof(struct lf_skipcell)
-#else
-#define SIZEOF_LF_SKIPCELL                                                     \
-  (sizeof(struct lf_skipcell) - sizeof(struct lf_skipcell *))
-#endif
 
 /* Generate a random level for a new node: 0 with probability 3/4,
    1 with probability 3/16, 2 with probability 3/64, etc.
@@ -110,7 +105,7 @@ void caml_lf_skiplist_init(struct lf_skiplist *sk) {
 
   sk->tail = caml_stat_alloc(SIZEOF_LF_SKIPCELL +
                              NUM_LEVELS * sizeof(struct lf_skipcell *));
-  sk->tail->key = UINTNAT_MAX;
+  sk->tail->key = CAML_UINTNAT_MAX;
   sk->tail->data = 0;
   sk->tail->garbage_next = NULL;
   sk->tail->top_level = NUM_LEVELS - 1;
@@ -334,7 +329,7 @@ int caml_lf_skiplist_insert(struct lf_skiplist *sk, uintnat key, uintnat data) {
   struct lf_skipcell *preds[NUM_LEVELS];
   struct lf_skipcell *succs[NUM_LEVELS];
 
-  CAMLassert(key > 0 && key < UINTNAT_MAX);
+  CAMLassert(key > 0 && key < CAML_UINTNAT_MAX);
 
   while (1) {
     /* We first try to find a node with [key] in the skip list. If it exists
@@ -359,7 +354,7 @@ int caml_lf_skiplist_insert(struct lf_skiplist *sk, uintnat key, uintnat data) {
       /* attentive readers will have noticed that we assume memory is aligned to
        * atleast even addresses. This is certainly the case on glibc amd64 and
        * Visual C++ on Windows though I can find no guarantees for other
-         platorms. */
+         platforms. */
       struct lf_skipcell *new_cell = caml_stat_alloc(
           SIZEOF_LF_SKIPCELL + (top_level + 1) * sizeof(struct lf_skipcell *));
       new_cell->top_level = top_level;

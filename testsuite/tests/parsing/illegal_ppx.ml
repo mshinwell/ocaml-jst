@@ -13,6 +13,7 @@ let missing_rhs loc =
 
 let empty_let loc = H.Str.value ~loc Asttypes.Nonrecursive []
 let empty_type loc = H.Str.type_ ~loc Asttypes.Nonrecursive []
+let empty_poly_binder loc = H.Typ.(poly ~loc [] (any ~loc ()))
 let functor_id loc = Location.mkloc
     (Longident.( Lapply (Lident "F", Lident "X"))) loc
 let complex_record loc =
@@ -53,6 +54,13 @@ let pat mapper p =
       lt_short_closed_pat loc
   | _ -> super.M.pat mapper p
 
+let typ mapper ty =
+  match ty.ptyp_desc with
+  | Ptyp_extension ({txt="empty_poly_binder";loc},_) ->
+      empty_poly_binder loc
+  | _ -> super.M.typ mapper ty
+
+
 let structure_item mapper stri = match stri.pstr_desc with
   | Pstr_extension (({Location.txt="empty_let";loc},_),_) -> empty_let loc
   | Pstr_extension (({Location.txt="empty_type";loc},_),_) -> empty_type loc
@@ -64,5 +72,11 @@ let signature_item mapper stri = match stri.psig_desc with
 
 
 let () = M.register "illegal ppx" (fun _ ->
+<<<<<<< HEAD
     { super with typ; expr; pat; structure_item; signature_item }
+||||||| 121bedcfd2
+    { super with expr; pat; structure_item; signature_item }
+=======
+    { super with expr; pat; structure_item; signature_item; typ }
+>>>>>>> ocaml/trunk
   )

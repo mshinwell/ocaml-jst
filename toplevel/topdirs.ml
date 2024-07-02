@@ -95,7 +95,7 @@ let _ = add_directive "directory" (Directive_string dir_directory)
 let dir_remove_directory s =
   let d = expand_directory Config.standard_library s in
   let keep id =
-    match Load_path.find_uncap (Ident.name id ^ ".cmi") with
+    match Load_path.find_normalized (Ident.name id ^ ".cmi") with
     | exception Not_found -> true
     | fn -> Filename.dirname fn <> d
   in
@@ -239,8 +239,16 @@ let match_simple_printer_type desc ~is_old_style =
     else Topprinters.printer_type_new
   in
   match
+<<<<<<< HEAD
     Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
       let ty_arg = Ctype.newvar (Jkind.Primitive.value ~why:Debug_printer_argument) in
+||||||| 121bedcfd2
+    Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
+      let ty_arg = Ctype.newvar() in
+=======
+    Ctype.with_local_level_generalize begin fun () ->
+      let ty_arg = Ctype.newvar() in
+>>>>>>> ocaml/trunk
       Ctype.unify !toplevel_env
         (make_printer_type ty_arg)
         (Ctype.instance desc.val_type);
@@ -257,10 +265,18 @@ let match_simple_printer_type desc ~is_old_style =
 let match_generic_printer_type desc ty_path params =
   let make_printer_type = Topprinters.printer_type_new in
   match
+<<<<<<< HEAD
     Ctype.with_local_level ~post:(List.iter Ctype.generalize) begin fun () ->
       let args = List.map (fun _ -> Ctype.newvar
                                       (Jkind.Primitive.value ~why:Debug_printer_argument))
                           params in
+||||||| 121bedcfd2
+    Ctype.with_local_level ~post:(List.iter Ctype.generalize) begin fun () ->
+      let args = List.map (fun _ -> Ctype.newvar ()) params in
+=======
+    Ctype.with_local_level_generalize begin fun () ->
+      let args = List.map (fun _ -> Ctype.newvar ()) params in
+>>>>>>> ocaml/trunk
       let ty_target = Ctype.newty (Tconstr (ty_path, args, ref Mnil)) in
       let printer_args_ty =
         List.map (fun ty_var -> make_printer_type ty_var) args in
@@ -299,14 +315,14 @@ let find_printer lid =
   | exception Not_found ->
     let report ppf =
       fprintf ppf "Unbound value %a.@."
-        Printtyp.longident lid
+        Printtyp.Compat.longident lid
     in Error report
   | (path, desc) ->
     match match_printer_type desc with
     | None ->
       let report ppf =
         fprintf ppf "%a has the wrong type for a printing function.@."
-          Printtyp.longident lid
+          Printtyp.Compat.longident lid
       in Error report
     | Some kind -> Ok (path, kind)
 
@@ -335,7 +351,7 @@ let remove_installed_printer path =
   | exception Not_found ->
     let report ppf =
       fprintf ppf "The printer named %a is not installed.@."
-        Printtyp.path path
+        Printtyp.Compat.path path
     in Error report
 
 let dir_install_printer ppf lid =
@@ -403,13 +419,13 @@ let show_prim to_sig ppf lid =
       | Longident.Lident s -> s
       | Longident.Ldot (_,s) -> s
       | Longident.Lapply _ ->
-          fprintf ppf "Invalid path %a@." Printtyp.longident lid;
+          fprintf ppf "Invalid path %a@." Printtyp.Compat.longident lid;
           raise Exit
     in
     let id = Ident.create_persistent s in
     let sg = to_sig env loc id lid in
     Printtyp.wrap_printing_env ~error:false env
-      (fun () -> fprintf ppf "@[%a@]@." Printtyp.signature sg)
+      (fun () -> fprintf ppf "@[%a@]@." Printtyp.Compat.signature sg)
   with
   | Not_found ->
       fprintf ppf "@[Unknown element.@]@."
@@ -450,10 +466,11 @@ let is_nonrec_type id td =
           nonrecursive_use:= true
     | _ -> ()
   in
-  let it =  Btype.{type_iterators with it_path } in
   let () =
-    it.it_type_declaration it td;
-    Btype.unmark_iterators.it_type_declaration Btype.unmark_iterators td
+    with_type_mark begin fun mark ->
+      let it = Btype.{(type_iterators mark) with it_path} in
+      it.it_type_declaration it td
+    end
   in
   match !recursive_use, !nonrecursive_use with
   | false, true -> Trec_not
@@ -558,13 +575,12 @@ let is_rec_module id md =
     | Path.Pident id' -> if (Ident.same id id') then raise Exit
     | _ -> ()
   in
-  let it =  Btype.{type_iterators with it_path } in
-  let rs = match it.it_module_declaration it md with
+  with_type_mark begin fun mark ->
+    let it =  Btype.{(type_iterators mark) with it_path} in
+    match it.it_module_declaration it md with
     | () -> Trec_not
     | exception Exit -> Trec_first
-  in
-  Btype.unmark_iterators.it_module_declaration Btype.unmark_iterators md;
-  rs
+  end
 
 let secretly_the_same_path env path1 path2 =
   let norm path = Printtyp.rewrite_double_underscore_paths env path in

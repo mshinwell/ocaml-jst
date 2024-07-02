@@ -124,7 +124,17 @@ let rebuild (used_variables:Variable.Set.t) (accumulated:accumulated) =
     List.map (fun decl ->
         match decl with
         | Block (var, _, _) | Expr (var, _) ->
+<<<<<<< HEAD
           Symbol_utils.Flambda.for_variable (Variable.rename var), decl)
+||||||| 121bedcfd2
+          Symbol.of_variable (Variable.rename var), decl
+        | Exprs _ ->
+          let name = Internal_variable_names.lifted_let_rec_block in
+          let var = Variable.create name in
+          Symbol.of_variable var, decl)
+=======
+          Symbol.of_variable (Variable.rename var), decl)
+>>>>>>> ocaml/trunk
       accumulated.extracted_lets
   in
   let extracted_definitions =
@@ -196,8 +206,8 @@ let add_extracted introduced program =
       match extracted with
       | Initialisation (symbol, tag, def) ->
         Flambda.Initialize_symbol (symbol, tag, def, program)
-      | Effect effect ->
-        Flambda.Effect (effect, program))
+      | Effect eff ->
+        Flambda.Effect (eff, program))
     introduced program
 
 let rec split_program (program : Flambda.program_body) : Flambda.program_body =

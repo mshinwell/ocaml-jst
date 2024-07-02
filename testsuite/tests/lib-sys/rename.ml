@@ -65,6 +65,7 @@ let _ =
   writefile f1 "abc";
   testfailure f1 (Filename.concat "nosuchdir" f2);
   print_newline();
+<<<<<<< HEAD
   safe_remove f1; safe_remove f2;
   print_string "Rename directory to a nonexisting directory: ";
   Sys.mkdir "foo" 0o755;
@@ -102,3 +103,54 @@ let _ =
   safe_remove_dir "foo";
   safe_remove f2;
   safe_remove_dir f2;
+||||||| 121bedcfd2
+  safe_remove f1; safe_remove f2
+=======
+  safe_remove f1; safe_remove f2;
+  print_string "Rename directory to a nonexisting directory: ";
+  Sys.mkdir "foo" 0o755;
+  testrenamedir "foo" "bar";
+  print_newline();
+  safe_remove_dir "bar";
+  print_string "Rename a nonexisting directory: ";
+  testfailure "foo" "bar";
+  print_newline();
+  print_string "Rename directory to a non-empty directory: ";
+  Sys.mkdir "foo" 0o755;
+  Sys.mkdir "bar" 0o755;
+  let f1 = Filename.concat "bar" "file1.dat" in
+  writefile f1 "abc";
+  testfailure "foo" "bar";
+  print_newline();
+  safe_remove f1; safe_remove_dir "foo"; safe_remove_dir "bar";
+  print_string "Rename directory to existing empty directory: ";
+  Sys.mkdir "foo" 0o755;
+  Sys.mkdir "bar" 0o755;
+  testrenamedir "foo" "bar";
+  print_newline();
+  safe_remove_dir "foo";
+  safe_remove_dir "bar";
+  print_string "Rename existing empty directory to itself: ";
+  Sys.mkdir "foo" 0o755;
+  testrenamedir "foo" "foo";
+  print_newline();
+  safe_remove_dir "foo";
+  print_string "Rename directory to existing file: ";
+  Sys.mkdir "foo" 0o755;
+  writefile f2 "xyz";
+  testfailure "foo" f2;
+  print_newline();
+  safe_remove_dir "foo";
+  safe_remove f2;
+  safe_remove_dir f2;
+  print_string "Rename parent directory to empty child directory: ";
+  Sys.mkdir "foo" 0o755;
+  let bar = Filename.concat "foo" "bar" in
+  Sys.mkdir bar 0o755;
+  testfailure "foo" bar;
+  assert (Sys.file_exists "foo");
+  assert (Sys.file_exists bar);
+  print_newline();
+  safe_remove_dir bar;
+  safe_remove_dir "foo";
+>>>>>>> ocaml/trunk

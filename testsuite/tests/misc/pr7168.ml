@@ -1,5 +1,19 @@
 (* TEST
+<<<<<<< HEAD
  ocamlrunparam += "l=100000";
+||||||| 121bedcfd2
+
+ocamlrunparam += "l=100000"
+=======
+ ocamlrunparam += "l=100000";
+ no-tsan; (* TSan does not support call stacks bigger than 64k frames *)
+ {
+   bytecode;
+ }
+ {
+   native;
+ }
+>>>>>>> ocaml/trunk
 *)
 
 let rec f x =

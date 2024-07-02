@@ -1,6 +1,13 @@
+<<<<<<< HEAD
 (* TEST
  runtime5;
 *)
+||||||| 121bedcfd2
+(* TEST
+*)
+=======
+(* TEST *)
+>>>>>>> ocaml/trunk
 
 (* Check the numbers drawn from a known state against the numbers
    obtained from the reference Java implementation. *)

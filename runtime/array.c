@@ -26,7 +26,7 @@
 #include "caml/runtime_events.h"
 #include "caml/custom.h"
 
-static const mlsize_t mlsize_t_max = -1;
+static const mlsize_t mlsize_t_max = CAML_UINTNAT_MAX;
 
 #define Max_array_wosize                   (Max_wosize)
 #define Max_custom_array_wosize            (Max_wosize - 1)
@@ -400,7 +400,13 @@ CAMLprim value caml_floatarray_create_local(value len)
 }
 
 /* [len] is a [value] representing number of words or floats */
+<<<<<<< HEAD
 static value make_vect_gen(value len, value init, int local)
+||||||| 121bedcfd2
+CAMLprim value caml_make_vect(value len, value init)
+=======
+CAMLprim value caml_array_make(value len, value init)
+>>>>>>> ocaml/trunk
 {
   CAMLparam2 (len, init);
   CAMLlocal1 (res);
@@ -464,13 +470,13 @@ CAMLprim value caml_make_local_vect(value len, value init)
 
 /* [len] is a [value] representing number of floats */
 /* [ int -> float array ] */
-CAMLprim value caml_make_float_vect(value len)
+CAMLprim value caml_array_create_float(value len)
 {
 #ifdef FLAT_FLOAT_ARRAY
   return caml_floatarray_create (len);
 #else
   /* A signaling NaN, statically allocated */
-  static uintnat some_float_contents[] = {
+  static const uintnat some_float_contents[] = {
     Caml_out_of_heap_header(Double_wosize, Double_tag),
 #if defined(ARCH_SIXTYFOUR)
     0x7FF0000000000001
@@ -481,7 +487,7 @@ CAMLprim value caml_make_float_vect(value len)
 #endif
   };
   value some_float = Val_hp(some_float_contents);
-  return caml_make_vect (len, some_float);
+  return caml_array_make (len, some_float);
 #endif
 }
 
@@ -542,7 +548,13 @@ CAMLprim value caml_make_unboxed_nativeint_vect_bytecode(value len)
    boxed floats and returns the corresponding flat-allocated [float array].
    In all other cases, it just returns its argument unchanged.
 */
+<<<<<<< HEAD
 static value make_array_gen(value init, int local)
+||||||| 121bedcfd2
+CAMLprim value caml_make_array(value init)
+=======
+CAMLprim value caml_array_of_uniform_array(value init)
+>>>>>>> ocaml/trunk
 {
 #ifdef FLAT_FLOAT_ARRAY
   CAMLparam1 (init);
@@ -581,6 +593,7 @@ static value make_array_gen(value init, int local)
 #endif
 }
 
+<<<<<<< HEAD
 CAMLprim value caml_make_array(value init)
 {
   return make_array_gen(init, 0);
@@ -591,6 +604,29 @@ CAMLprim value caml_make_array_local(value init)
   return make_array_gen(init, 1);
 }
 
+||||||| 121bedcfd2
+=======
+
+/* #13003: previous names for array-creation primitives,
+   kept for backward-compatibility only. */
+
+CAMLprim value caml_make_vect(value len, value init)
+{
+  return caml_array_make(len, init);
+}
+
+CAMLprim value caml_make_float_vect(value len)
+{
+  return caml_array_create_float(len);
+}
+
+CAMLprim value caml_make_array(value array)
+{
+  return caml_array_of_uniform_array(array);
+}
+
+
+>>>>>>> ocaml/trunk
 /* Blitting */
 
 /* [wo_memmove] copies [nvals] values from [src] to [dst]. If there is a single
@@ -600,7 +636,7 @@ CAMLprim value caml_make_array_local(value init)
    Since the [memmove] implementation does not guarantee that the writes are
    always word-sized, we explicitly perform word-sized writes of the release
    kind to avoid mixed-mode accesses. Performing release writes should be
-   sufficient to prevent smart compilers from coalesing the writes into vector
+   sufficient to prevent smart compilers from coalescing the writes into vector
    writes, and hence prevent mixed-mode accesses. [MM].
    */
 static void wo_memmove (volatile value* const dst,
@@ -632,6 +668,12 @@ static void wo_memmove (volatile value* const dst,
 CAMLprim value caml_floatarray_blit(value a1, value ofs1, value a2, value ofs2,
                                     value n)
 {
+  if (Long_val(n) == 0) return Val_unit;
+  /* Note: size-0 floatarrays do not have Double_array_tag,
+     but only size-0 blits are possible on them, so they
+     do not reach this point. */
+  CAMLassert (Tag_val(a1) == Double_array_tag);
+  CAMLassert (Tag_val(a2) == Double_array_tag);
   /* See memory model [MM] notes in memory.c */
   atomic_thread_fence(memory_order_acquire);
   memmove((double *)a2 + Long_val(ofs2),
@@ -686,6 +728,10 @@ CAMLprim value caml_array_blit(value a1, value ofs1, value a2, value ofs2,
   if (Tag_val(a2) == Double_array_tag)
     return caml_floatarray_blit(a1, ofs1, a2, ofs2, n);
 #endif
+  if (Long_val(n) == 0)
+    /* See comment on size-0 floatarrays in [caml_floatarray_blit]. */
+    return Val_unit;
+  CAMLassert (Tag_val(a1) != Double_array_tag);
   CAMLassert (Tag_val(a2) != Double_array_tag);
   if (Is_young(a2) || caml_is_stack(a2)) {
     /* Arrays of values, destination is local or in young generation.

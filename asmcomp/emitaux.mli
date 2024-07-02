@@ -87,16 +87,9 @@ type error =
   | Stack_frame_too_large of int
 
 exception Error of error
-val report_error: Format.formatter -> error -> unit
+val report_error: error Format_doc.printer
 
 val mk_env : Linear.fundecl -> Emitenv.per_function_env
 
-type preproc_stack_check_result =
-  { max_frame_size : int;
-    contains_nontail_calls : bool }
-
-val preproc_stack_check:
-  fun_body:Linear.instruction ->
-  frame_size:int ->
-  trap_size:int ->
-  preproc_stack_check_result
+(* Output .text section directive, or named .text.caml.<name> if enabled. *)
+val emit_named_text_section : string -> char -> unit

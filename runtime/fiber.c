@@ -18,8 +18,12 @@
 
 #define CAML_INTERNALS
 
+#include "caml/config.h"
 #include <string.h>
+#ifdef HAS_UNISTD
 #include <unistd.h>
+#endif
+#include <assert.h>
 #include "caml/alloc.h"
 #include "caml/callback.h"
 #include "caml/codefrag.h"
@@ -46,6 +50,8 @@
 #else
 #define fiber_debug_log(...)
 #endif
+
+static_assert(sizeof(struct stack_info) == Stack_ctx_words * sizeof(value), "");
 
 static _Atomic int64_t fiber_id = 0;
 
@@ -106,11 +112,42 @@ struct stack_info** caml_alloc_stack_cache (void)
 
 Caml_inline struct stack_info* alloc_for_stack (mlsize_t wosize)
 {
+<<<<<<< HEAD
 #ifdef USE_MMAP_MAP_STACK
   size_t len = sizeof(struct stack_info) +
                sizeof(value) * wosize +
                8 /* for alignment to 16-bytes, needed for arm64 */ +
                sizeof(struct stack_handler);
+||||||| 121bedcfd2
+  size_t len = sizeof(struct stack_info) +
+               sizeof(value) * wosize +
+               8 /* for alignment to 16-bytes, needed for arm64 */ +
+               sizeof(struct stack_handler);
+#ifdef USE_MMAP_MAP_STACK
+=======
+  size_t stack_len = sizeof(struct stack_info) + sizeof(value) * wosize;
+  size_t len;
+
+  /* Some platforms require 16-byte alignment of the stack pointer, which
+     will be _at the end_ of this allocation, so we need to ask for a bit more
+     memory to make sure that
+       caml_round_up(allocated stack base + stack_len, 16) + sizeof handler
+     will fit the allocated space.
+
+     When using mmap, we can rely upon the stack base being page-aligned
+     and thus aligned to a 16 byte boundary, and can round up here;
+     otherwise we need to always ask for 15 more bytes in order to cope with
+     all misalignment possibilities, even though it is likely that the
+     result of caml_stat_alloc_noexc() will be at least aligned to an
+     8-byte boundary. */
+#ifdef USE_MMAP_MAP_STACK
+  len = caml_round_up(stack_len, 16) + sizeof(struct stack_handler);
+#else
+  len = stack_len + (16 - 1) + sizeof(struct stack_handler);
+#endif
+
+#ifdef USE_MMAP_MAP_STACK
+>>>>>>> ocaml/trunk
   struct stack_info* si;
   si = mmap(NULL, len, PROT_WRITE | PROT_READ,
              MAP_ANONYMOUS | MAP_PRIVATE | MAP_STACK, -1, 0);
@@ -236,8 +273,8 @@ alloc_size_class_stack_noexc(mlsize_t wosize, int cache_bucket, value hval,
   struct stack_handler* hand;
   struct stack_info **cache = Caml_state->stack_cache;
 
-  CAML_STATIC_ASSERT(sizeof(struct stack_info) % sizeof(value) == 0);
-  CAML_STATIC_ASSERT(sizeof(struct stack_handler) % sizeof(value) == 0);
+  static_assert(sizeof(struct stack_info) % sizeof(value) == 0, "");
+  static_assert(sizeof(struct stack_handler) % sizeof(value) == 0, "");
 
   CAMLassert(cache != NULL);
 
@@ -257,10 +294,11 @@ alloc_size_class_stack_noexc(mlsize_t wosize, int cache_bucket, value hval,
 
     stack->cache_bucket = cache_bucket;
 
-    /* Ensure 16-byte alignment because some architectures require it */
-    hand = (struct stack_handler*)
-     (((uintnat)stack + sizeof(struct stack_info) + sizeof(value) * wosize + 8)
-      & ((uintnat)-1 << 4));
+    /* Ensure 16-byte alignment because some architectures (e.g. arm64)
+       require it. alloc_for_stack() has allocated extra room to prevent
+       this computation from overflowing. */
+    hand = (struct stack_handler*)caml_round_up(
+      (uintnat)stack + sizeof(struct stack_info) + sizeof(value) * wosize, 16);
     stack->handler = hand;
   }
 
@@ -274,8 +312,9 @@ alloc_size_class_stack_noexc(mlsize_t wosize, int cache_bucket, value hval,
 #ifdef DEBUG
   stack->magic = 42;
 #endif
-  CAMLassert(Stack_high(stack) - Stack_base(stack) == wosize ||
-             Stack_high(stack) - Stack_base(stack) == wosize + 1);
+  /* Due to stack alignment performed above, the actual stack size may be
+   * larger than requested. */
+  CAMLassert(Stack_high(stack) - Stack_base(stack) >= wosize);
   return stack;
 
 }
@@ -311,10 +350,9 @@ void caml_get_stack_sp_pc (struct stack_info* stack,
                            char** sp /* out */, uintnat* pc /* out */)
 {
   char* p = (char*)stack->sp;
-
-  Pop_frame_pointer(p);
-  *pc = *(uintnat*)p; /* ret addr */
-  *sp = p + sizeof(value);
+  p = First_frame(p);
+  *pc = Saved_return_address(p); /* ret addr */
+  *sp = p;                       /* pointer to first frame */
 }
 
 
@@ -488,19 +526,23 @@ Caml_inline void scan_stack_frames(
   value * regs;
   frame_descr * d;
   value *root;
+<<<<<<< HEAD
   caml_frame_descrs fds = caml_get_frame_descrs();
   /* does not change during marking */
   struct global_heap_state colors = caml_global_heap_state;
+||||||| 121bedcfd2
+  caml_frame_descrs fds = caml_get_frame_descrs();
+=======
+  caml_frame_descrs * fds = caml_get_frame_descrs();
+>>>>>>> ocaml/trunk
 
   sp = (char*)stack->sp;
   regs = gc_regs;
 
 next_chunk:
   if (sp == (char*)Stack_high(stack)) return;
-
-  Pop_frame_pointer(sp);
-  retaddr = *(uintnat*)sp;
-  sp += sizeof(value);
+  sp = First_frame(sp);
+  retaddr = Saved_return_address(sp);
 
   while(1) {
     d = caml_find_frame_descr(fds, retaddr);
@@ -540,9 +582,8 @@ next_chunk:
     } else {
       /* This marks the top of an ML stack chunk. Move sp to the previous
        * stack chunk.  */
-      sp += 3 * sizeof(value); /* trap frame & DWARF pointer */
-      regs = *(value**)sp;     /* update gc_regs */
-      sp += 1 * sizeof(value); /* gc_regs */
+      regs = Saved_gc_regs(sp); /* update gc_regs */
+      sp += Stack_header_size;  /* skip trap frame, gc_regs, DWARF pointer */
       goto next_chunk;
     }
   }
@@ -758,7 +799,7 @@ static void rewrite_frame_pointers(struct stack_info *old_stack,
     struct frame_walker *base_addr;
     uintnat return_addr;
   } *frame, *next;
-  ssize_t delta;
+  ptrdiff_t delta;
   void *top, **p;
 
   delta = (char*)Stack_high(new_stack) - (char*)Stack_high(old_stack);
@@ -820,8 +861,9 @@ int caml_try_realloc_stack(asize_t required_space)
   old_stack = Caml_state->current_stack;
   stack_used = Stack_high(old_stack) - (value*)old_stack->sp;
   wsize = Stack_high(old_stack) - Stack_base(old_stack);
+  uintnat max_stack_wsize = caml_max_stack_wsize;
   do {
-    if (wsize >= caml_max_stack_wsize) return 0;
+    if (wsize >= max_stack_wsize) return 0;
     wsize *= 2;
   } while (wsize < stack_used + required_space);
 
@@ -1015,13 +1057,6 @@ void caml_continuation_replace(value cont, struct stack_info* stk)
   int b = atomic_compare_exchange_strong(Op_atomic_val(cont), &n, Val_ptr(stk));
   CAMLassert(b);
   (void)b; /* squash unused warning */
-}
-
-CAMLprim value caml_drop_continuation (value cont)
-{
-  struct stack_info* stk = Ptr_val(caml_continuation_use(cont));
-  caml_free_stack(stk);
-  return Val_unit;
 }
 
 static const value * _Atomic caml_unhandled_effect_exn = NULL;

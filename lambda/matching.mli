@@ -30,6 +30,10 @@ val for_trywith:
         scopes:scopes -> return_layout:layout -> Location.t ->
         lambda -> (pattern * lambda) list ->
         lambda
+val for_handler:
+        scopes:scopes -> Location.t ->
+        lambda -> lambda -> lambda -> (pattern * lambda) list ->
+        lambda
 val for_let:
         scopes:scopes -> arg_sort:Jkind.sort -> return_layout:layout ->
         Location.t -> lambda -> pattern -> lambda ->
@@ -45,6 +49,7 @@ val for_tupled_function:
         Ident.t list -> (pattern list * lambda) list -> partial ->
         lambda
 
+<<<<<<< HEAD
 (** [for_optional_arg_default pat body ~default_arg ~param] is:
     {[
       let $pat =
@@ -60,6 +65,25 @@ val for_optional_arg_default:
   default_arg:lambda -> default_arg_sort:Jkind.sort ->
   return_layout:layout -> lambda -> lambda
 
+||||||| 121bedcfd2
+=======
+(** [for_optional_arg_default pat body ~default_arg ~param] is:
+
+   {[
+     let $pat =
+       match $param with
+       | Some x -> x
+       | None -> $default_arg
+     in
+     $body
+   ]}
+*)
+val for_optional_arg_default:
+  scopes:scopes -> Location.t ->
+  pattern -> default_arg:lambda -> param:Ident.t -> lambda ->
+  lambda
+
+>>>>>>> ocaml/trunk
 exception Cannot_flatten
 
 val flatten_pattern: int -> pattern -> pattern list

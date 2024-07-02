@@ -39,6 +39,7 @@ let layout_tables = Lambda.Pvalue Pgenval
 
 let lfunction ?(kind=Curried {nlocal=0}) ?(region=true) ?(ret_mode=alloc_heap) return_layout params body =
   if params = [] then body else
+<<<<<<< HEAD
   match kind, body with
   | Curried {nlocal=0},
     Lfunction {kind = Curried _ as kind; params = params';
@@ -46,6 +47,20 @@ let lfunction ?(kind=Curried {nlocal=0}) ?(region=true) ?(ret_mode=alloc_heap) r
     when List.length params + List.length params' <= Lambda.max_arity() ->
       lfunction ~kind ~params:(params @ params')
                 ~return:return_layout
+||||||| 121bedcfd2
+  match body with
+  | Lfunction {kind = Curried; params = params'; body = body'; attr; loc}
+    when List.length params + List.length params' <= Lambda.max_arity() ->
+      lfunction ~kind:Curried ~params:(params @ params')
+                ~return:Pgenval
+=======
+  match body with
+  | Lfunction {kind = Curried; params = params'; body = body'; attr; loc}
+    when attr.may_fuse_arity &&
+         List.length params + List.length params' <= Lambda.max_arity() ->
+      lfunction ~kind:Curried ~params:(params @ params')
+                ~return:Pgenval
+>>>>>>> ocaml/trunk
                 ~body:body'
                 ~attr
                 ~loc
@@ -153,8 +168,16 @@ let create_object cl obj init =
 
 let name_pattern default p =
   match p.pat_desc with
+<<<<<<< HEAD
   | Tpat_var (id, _, _, _) -> id
   | Tpat_alias(_, id, _, _, _) -> id
+||||||| 121bedcfd2
+  | Tpat_var (id, _) -> id
+  | Tpat_alias(_, id, _) -> id
+=======
+  | Tpat_var (id, _, _) -> id
+  | Tpat_alias(_, id, _, _) -> id
+>>>>>>> ocaml/trunk
   | _ -> Ident.create_local default
 
 let rec build_object_init ~scopes cl_table obj params inh_init obj_init cl =
@@ -259,6 +282,9 @@ let rec build_object_init_0
     Tcl_let (_rec_flag, _defs, vals, cl) ->
       build_object_init_0
         ~scopes cl_table (vals@params) cl copy_env subst_env top ids
+  | Tcl_open (_descr, cl) ->
+      build_object_init_0
+        ~scopes cl_table params cl copy_env subst_env top ids
   | _ ->
       let self = Ident.create_local "self" in
       let env = Ident.create_local "env" in
@@ -332,10 +358,26 @@ let rec build_class_init ~scopes cla cstr super inh_init cl_init msubst top cl =
       begin match inh_init with
       | (_, path_lam, obj_init)::inh_init ->
           (inh_init,
+<<<<<<< HEAD
            Llet (Strict, layout_t, obj_init,
                  mkappl(Lprim(class_field 1, [path_lam], Loc_unknown), (Lvar cla ::
                         if top then [Lprim(class_field 3, [path_lam], Loc_unknown)]
                         else []), layout_t),
+||||||| 121bedcfd2
+           Llet (Strict, Pgenval, obj_init,
+                 mkappl(Lprim(Pfield (1, Pointer, Mutable),
+                              [path_lam], Loc_unknown), Lvar cla ::
+                        if top then [Lprim(Pfield (3, Pointer, Mutable),
+                                     [path_lam], Loc_unknown)]
+                        else []),
+=======
+           Llet (Strict, Pgenval, obj_init,
+                 mkappl(Lprim(Pfield (1, Pointer, Mutable),
+                              [path_lam], Loc_unknown), Lvar cla ::
+                        if top then [Lprim(Pfield (2, Pointer, Mutable),
+                                     [path_lam], Loc_unknown)]
+                        else []),
+>>>>>>> ocaml/trunk
                  bind_super cla super cl_init))
       | _ ->
           assert false
@@ -463,12 +505,32 @@ let rec build_class_lets ~scopes cl =
   match cl.cl_desc with
     Tcl_let (rec_flag, defs, _vals, cl') ->
       let env, wrap = build_class_lets ~scopes cl' in
+<<<<<<< HEAD
       (env, fun return_layout lam_and_kind ->
           let lam, rkind = wrap return_layout lam_and_kind in
           Translcore.transl_let ~scopes ~return_layout rec_flag defs lam,
           rkind)
+||||||| 121bedcfd2
+      (env, fun x ->
+          Translcore.transl_let ~scopes rec_flag defs (wrap x))
+=======
+      (env, fun lam_and_kind ->
+          let lam, rkind = wrap lam_and_kind in
+          Translcore.transl_let ~scopes rec_flag defs lam, rkind)
+  | Tcl_open (open_descr, cl) ->
+      (* Failsafe to ensure we get a compilation error if arbitrary
+         module expressions become allowed *)
+      let _ : Path.t * Longident.t loc = open_descr.open_expr in
+      build_class_lets ~scopes cl
+>>>>>>> ocaml/trunk
   | _ ->
+<<<<<<< HEAD
       (cl.cl_env, fun _ lam_and_kind -> lam_and_kind)
+||||||| 121bedcfd2
+      (cl.cl_env, fun x -> x)
+=======
+      (cl.cl_env, fun lam_and_kind -> lam_and_kind)
+>>>>>>> ocaml/trunk
 
 let rec get_class_meths cl =
   match cl.cl_desc with
@@ -604,9 +666,18 @@ let transl_class_rebind ~scopes cl vf =
                    mkappl(lfield cla 1, [Lvar table], layout_function),
                    lfunction layout_function [lparam envs layout_block]
                      (mkappl(Lvar new_init,
+<<<<<<< HEAD
                              [mkappl(Lvar env_init, [Lvar envs], layout_obj)], layout_function))));
            lfield cla 2;
            lfield cla 3],
+||||||| 121bedcfd2
+                             [mkappl(Lvar env_init, [Lvar envs])]))));
+           lfield cla 2;
+           lfield cla 3],
+=======
+                             [mkappl(Lvar env_init, [Lvar envs])]))));
+           lfield cla 2],
+>>>>>>> ocaml/trunk
           Loc_unknown)))
   with Exit ->
     lambda_unit
@@ -712,16 +783,26 @@ open M
     * class without local dependencies -> direct translation
     * with local dependencies -> generate a stubs tree,
       with a node for every local classes inherited
-   A class is a 4-tuple:
-    (obj_init, class_init, env_init, env)
-    obj_init: creation function (unit -> obj)
-    class_init: inheritance function (table -> env_init)
+   A class is a 3-tuple:
+    (obj_init, class_init, env)
+    obj_init: creation function (unit -> params -> obj)
+    class_init: inheritance function (table -> env -> obj_init)
       (one by source code)
-    env_init: parameterisation by the local environment
-      (env -> params -> obj_init)
-      (one for each combination of inherited class_init )
     env: local environment
-   If ids=0 (immediate object), then only env_init is conserved.
+
+   The local environment is used for cached classes. When a
+   class definition occurs under a call to Translobj.oo_wrap
+   (typically inside a functor), the class creation code is
+   split between a static part (depending only on toplevel names)
+   and a dynamic part, the environment. The static part is cached
+   in a toplevel structure, so that only the first class creation
+   computes it and the subsequent classes can reuse it.
+   Because of that, the (static) [class_init] function takes both
+   the class table to be filled and the environment as parameters,
+   and when called is given the [env] field of the class.
+   For the [obj_init] part, an [env_init] function (of type [env -> obj_init])
+   is stored in the cache, and called on the environment to generate
+   the [obj_init] at class creation time.
 *)
 
 (*
@@ -744,8 +825,16 @@ let free_methods l =
     | Lmutlet(_k, id, _arg, _body) ->
         fv := Ident.Set.remove id !fv
     | Lletrec(decl, _body) ->
+<<<<<<< HEAD
         List.iter (fun { id } -> fv := Ident.Set.remove id !fv) decl
     | Lstaticcatch(_e1, (_,vars), _e2, _, _kind) ->
+||||||| 121bedcfd2
+        List.iter (fun (id, _exp) -> fv := Ident.Set.remove id !fv) decl
+    | Lstaticcatch(_e1, (_,vars), _e2) ->
+=======
+        List.iter (fun { id } -> fv := Ident.Set.remove id !fv) decl
+    | Lstaticcatch(_e1, (_,vars), _e2) ->
+>>>>>>> ocaml/trunk
         List.iter (fun (id, _) -> fv := Ident.Set.remove id !fv) vars
     | Ltrywith(_e1, exn, _e2, _k) ->
         fv := Ident.Set.remove exn !fv
@@ -871,9 +960,16 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
                    mkappl (Lvar obj_init, [lambda_unit], layout_function)))
   in
   (* Simplest case: an object defined at toplevel (ids=[]) *)
+<<<<<<< HEAD
   if top && ids = [] then llets layout_table (ltable cla (ldirect obj_init), Dynamic) else
+||||||| 121bedcfd2
+  if top && ids = [] then llets (ltable cla (ldirect obj_init)) else
+=======
+  if top && ids = [] then llets (ltable cla (ldirect obj_init), Dynamic) else
+>>>>>>> ocaml/trunk
 
   let concrete = (vflag = Concrete)
+<<<<<<< HEAD
   and lclass mk_lam_and_kind =
     let cl_init, _ =
       llets layout_function
@@ -891,28 +987,75 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
     in
     let lam, rkind = mk_lam_and_kind (free_variables cl_init) in
     Llet(Strict, layout_function, class_init, cl_init, lam), rkind
+||||||| 121bedcfd2
+  and lclass lam =
+    let cl_init = llets (Lambda.lfunction
+                           ~kind:Curried
+                           ~attr:default_function_attribute
+                           ~loc:Loc_unknown
+                           ~return:Pgenval
+                           ~params:[cla, Pgenval] ~body:cl_init) in
+    Llet(Strict, Pgenval, class_init, cl_init, lam (free_variables cl_init))
+=======
+  and lclass mk_lam_and_kind =
+    let cl_init, _ =
+      llets (Lambda.lfunction
+               ~kind:Curried
+               ~attr:default_function_attribute
+               ~loc:Loc_unknown
+               ~return:Pgenval
+               ~params:[cla, Pgenval]
+               ~body:cl_init,
+            Dynamic (* Placeholder, real kind is computed in [lbody] below *))
+    in
+    let lam, rkind = mk_lam_and_kind (free_variables cl_init) in
+    Llet(Strict, Pgenval, class_init, cl_init, lam), rkind
+>>>>>>> ocaml/trunk
   and lbody fv =
     if List.for_all (fun id -> not (Ident.Set.mem id fv)) ids then
       mkappl (oo_prim "make_class",[transl_meth_list pub_meths;
+<<<<<<< HEAD
                                     Lvar class_init], layout_block),
       Dynamic
+||||||| 121bedcfd2
+                                    Lvar class_init])
+=======
+                                    Lvar class_init]),
+      Dynamic
+>>>>>>> ocaml/trunk
     else
       ltable table (
       Llet(
       Strict, layout_function, env_init, mkappl (Lvar class_init, [Lvar table], layout_function),
       Lsequence(
+<<<<<<< HEAD
       mkappl (oo_prim "init_class", [Lvar table], layout_unit),
       Lprim(Pmakeblock(0, Immutable, None, alloc_heap),
             [mkappl (Lvar env_init, [lambda_unit], layout_obj);
              Lvar class_init; Lvar env_init; lambda_unit],
             Loc_unknown)))),
       Static
+||||||| 121bedcfd2
+      mkappl (oo_prim "init_class", [Lvar table]),
+      Lprim(Pmakeblock(0, Immutable, None),
+            [mkappl (Lvar env_init, [lambda_unit]);
+             Lvar class_init; Lvar env_init; lambda_unit],
+            Loc_unknown))))
+=======
+      mkappl (oo_prim "init_class", [Lvar table]),
+      Lprim(Pmakeblock(0, Immutable, None),
+            [mkappl (Lvar env_init, [lambda_unit]);
+             Lvar class_init; lambda_unit],
+            Loc_unknown)))),
+      Static
+>>>>>>> ocaml/trunk
   and lbody_virt lenvs =
     Lprim(Pmakeblock(0, Immutable, None, alloc_heap),
           [lambda_unit; Lambda.lfunction
                           ~kind:(Curried {nlocal=0})
                           ~attr:default_function_attribute
                           ~loc:Loc_unknown
+<<<<<<< HEAD
                           ~return:layout_function
                           ~mode:alloc_heap
                           ~ret_mode:alloc_heap
@@ -921,6 +1064,18 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
            lambda_unit; lenvs],
          Loc_unknown),
     Static
+||||||| 121bedcfd2
+                          ~return:Pgenval
+                          ~params:[cla, Pgenval] ~body:cl_init;
+           lambda_unit; lenvs],
+         Loc_unknown)
+=======
+                          ~return:Pgenval
+                          ~params:[cla, Pgenval] ~body:cl_init;
+           lenvs],
+         Loc_unknown),
+    Static
+>>>>>>> ocaml/trunk
   in
   (* Still easy: a class defined at toplevel *)
   if top && concrete then lclass lbody else
@@ -945,11 +1100,27 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
           Loc_unknown)
   and linh_envs =
     List.map
+<<<<<<< HEAD
       (fun (_, path_lam, _) -> Lprim(class_field 3, [path_lam], Loc_unknown))
+||||||| 121bedcfd2
+      (fun (_, path_lam, _) ->
+        Lprim(Pfield (3, Pointer, Mutable), [path_lam], Loc_unknown))
+=======
+      (fun (_, path_lam, _) ->
+        Lprim(Pfield (2, Pointer, Mutable), [path_lam], Loc_unknown))
+>>>>>>> ocaml/trunk
       (List.rev inh_init)
   in
+<<<<<<< HEAD
   let make_envs (lam, rkind) =
     Llet(StrictOpt, layout_block, envs,
+||||||| 121bedcfd2
+  let make_envs lam =
+    Llet(StrictOpt, Pgenval, envs,
+=======
+  let make_envs (lam, rkind) =
+    Llet(StrictOpt, Pgenval, envs,
+>>>>>>> ocaml/trunk
          (if linh_envs = [] then lenv else
          Lprim(Pmakeblock(0, Immutable, None, alloc_heap),
                lenv :: linh_envs, Loc_unknown)),
@@ -1016,6 +1187,7 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
          so that the program's behaviour does not change between runs *)
       lupdate_cache
     else
+<<<<<<< HEAD
       Lifthenelse(lfield cached 0, lambda_unit, lupdate_cache, layout_unit) in
   let lcache (lam, rkind) =
     let lam = Lsequence (lcheck_cache, lam) in
@@ -1032,18 +1204,48 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
     lam, rkind
   in
   llets layout_block (
+||||||| 121bedcfd2
+      Lifthenelse(lfield cached 0, lambda_unit, lupdate_cache) in
+  llets (
+=======
+      Lifthenelse(lfield cached 0, lambda_unit, lupdate_cache) in
+  let lcache (lam, rkind) =
+    let lam = Lsequence (lcheck_cache, lam) in
+    let lam =
+      if inh_keys = []
+      then Llet(Alias, Pgenval, cached, Lvar tables, lam)
+      else
+        Llet(Strict, Pgenval, cached,
+             mkappl (oo_prim "lookup_tables",
+                     [Lvar tables; Lprim(Pmakeblock(0, Immutable, None),
+                                         inh_keys, Loc_unknown)]),
+             lam)
+    in
+    lam, rkind
+  in
+  llets (
+>>>>>>> ocaml/trunk
   lcache (
   make_envs (
+<<<<<<< HEAD
   if ids = []
   then mkappl (lfield cached 0, [lenvs], layout_obj), Dynamic
   else
     Lprim(Pmakeblock(0, Immutable, None, alloc_heap),
+||||||| 121bedcfd2
+  if ids = [] then mkappl (lfield cached 0, [lenvs]) else
+  Lprim(Pmakeblock(0, Immutable, None),
+=======
+  if ids = []
+  then mkappl (lfield cached 0, [lenvs]), Dynamic
+  else
+    Lprim(Pmakeblock(0, Immutable, None),
+>>>>>>> ocaml/trunk
         (if concrete then
           [mkappl (lfield cached 0, [lenvs], layout_obj);
            lfield cached 1;
-           lfield cached 0;
            lenvs]
-        else [lambda_unit; lfield cached 0; lambda_unit; lenvs]),
+        else [lambda_unit; lfield cached 0; lenvs]),
         Loc_unknown
        ),
     Static)))
@@ -1068,12 +1270,15 @@ let () =
 
 (* Error report *)
 
-open Format
+open Format_doc
+module Style = Misc.Style
 
 let report_error ppf = function
   | Tags (lab1, lab2) ->
-      fprintf ppf "Method labels `%s' and `%s' are incompatible.@ %s"
-        lab1 lab2 "Change one of them."
+      fprintf ppf "Method labels %a and %a are incompatible.@ %s"
+        Style.inline_code lab1
+        Style.inline_code lab2
+        "Change one of them."
 
 let () =
   Location.register_error_of_exn

@@ -12,11 +12,17 @@
 (*                                                                        *)
 (**************************************************************************)
 
+<<<<<<< HEAD
 (* CR mshinwell: To be re-enabled in due course *)
 
 (*
 
 type 'a t = ..
+||||||| 121bedcfd2
+type 'a t = ..
+=======
+type 'a t = 'a eff = ..
+>>>>>>> ocaml/trunk
 external perform : 'a t -> 'a = "%perform"
 
 type exn += Unhandled: 'a t -> exn
@@ -40,15 +46,16 @@ let _ = Callback.register_exception "Effect.Unhandled"
 let _ = Callback.register_exception "Effect.Continuation_already_resumed"
           Continuation_already_resumed
 
-type ('a, 'b) stack
+type ('a, 'b) stack [@@immediate]
+type last_fiber [@@immediate]
 
-external resume : ('a, 'b) stack -> ('c -> 'a) -> 'c -> 'b = "%resume"
+external resume :
+  ('a, 'b) stack -> ('c -> 'a) -> 'c -> last_fiber -> 'b = "%resume"
 external runstack : ('a, 'b) stack -> ('c -> 'a) -> 'c -> 'b = "%runstack"
 
 module Deep = struct
 
-  type ('a,'b) continuation
-  type last_fiber
+  type nonrec ('a,'b) continuation = ('a,'b) continuation
 
   external take_cont_noexc : ('a, 'b) continuation -> ('a, 'b) stack =
     "caml_continuation_use_noexc" [@@noalloc]
@@ -57,13 +64,17 @@ module Deep = struct
     (exn -> 'b) ->
     ('c t -> ('c, 'b) continuation -> last_fiber -> 'b) ->
     ('a, 'b) stack = "caml_alloc_stack"
+  external cont_last_fiber : ('a, 'b) continuation -> last_fiber = "%field1"
 
-  let continue k v = resume (take_cont_noexc k) (fun x -> x) v
+  let continue k v =
+    resume (take_cont_noexc k) (fun x -> x) v (cont_last_fiber k)
 
-  let discontinue k e = resume (take_cont_noexc k) (fun e -> raise e) e
+  let discontinue k e =
+    resume (take_cont_noexc k) (fun e -> raise e) e (cont_last_fiber k)
 
-  let discontinue_with_backtrace k e bt = resume (take_cont_noexc k) (fun e ->
-    Printexc.raise_with_backtrace e bt) e
+  let discontinue_with_backtrace k e bt =
+    resume (take_cont_noexc k) (fun e -> Printexc.raise_with_backtrace e bt)
+      e (cont_last_fiber k)
 
   type ('a,'b) handler =
     { retc: 'a -> 'b;
@@ -102,7 +113,6 @@ end
 module Shallow = struct
 
   type ('a,'b) continuation
-  type last_fiber
 
   external alloc_stack :
     ('a -> 'b) ->
@@ -110,6 +120,7 @@ module Shallow = struct
     ('c t -> ('c, 'b) continuation -> last_fiber -> 'b) ->
     ('a, 'b) stack = "caml_alloc_stack"
 
+  external cont_last_fiber : ('a, 'b) continuation -> last_fiber = "%field1"
 
   let fiber : type a b. (a -> b) -> (a, b) continuation = fun f ->
     let module M = struct type _ t += Initial_setup__ : a t end in
@@ -147,8 +158,9 @@ module Shallow = struct
       | Some f -> f k
       | None -> reperform eff k last_fiber
     in
+    let last_fiber = cont_last_fiber k in
     let stack = update_handler k handler.retc handler.exnc effc in
-    resume stack resume_fun v
+    resume stack resume_fun v last_fiber
 
   let continue_with k v handler =
     continue_gen k (fun x -> x) v handler

@@ -130,11 +130,16 @@ let oper_result_type = function
   | Cprobe _ -> typ_void
   | Cprobe_is_enabled _ -> typ_int
   | Copaque -> typ_val
+<<<<<<< HEAD
   | Cbeginregion ->
     (* This must not be typ_val; the begin-region operation returns a
        naked pointer into the local allocation stack. *)
     typ_int
   | Cendregion -> typ_void
+||||||| 121bedcfd2
+=======
+  | Cpoll -> typ_void
+>>>>>>> ocaml/trunk
 
 (* Infer the size in bytes of the result of an expression whose evaluation
    may be deferred (cf. [emit_parts]). *)
@@ -322,7 +327,7 @@ module Effect_and_coeffect : sig
   val none : t
   val arbitrary : t
 
-  val effect : t -> Effect.t
+  val effect_ : t -> Effect.t
   val coeffect : t -> Coeffect.t
 
   val pure_and_copure : t -> bool
@@ -338,7 +343,7 @@ end = struct
   let none = Effect.None, Coeffect.None
   let arbitrary = Effect.Arbitrary, Coeffect.Arbitrary
 
-  let effect (e, _ce) = e
+  let effect_ (e, _ce) = e
   let coeffect (_e, ce) = ce
 
   let pure_and_copure (e, ce) = Effect.pure e && Coeffect.copure ce
@@ -370,6 +375,7 @@ method is_simple_expr = function
   | Cconst_float _ -> true
   | Cconst_symbol _ -> true
   | Cvar _ -> true
+  | Creturn_addr -> true
   | Ctuple el -> List.for_all self#is_simple_expr el
   | Clet(_id, arg, body) | Clet_mut(_id, _, arg, body) ->
     self#is_simple_expr arg && self#is_simple_expr body
@@ -378,10 +384,17 @@ method is_simple_expr = function
   | Cop(op, args, _) ->
       begin match op with
         (* The following may have side effects *)
+<<<<<<< HEAD
       | Capply _ | Cextcall _ | Calloc _ | Cstore _
       | Craise _ | Ccheckbound
       | Cprobe _ | Cprobe_is_enabled _ | Copaque -> false
       | Cbeginregion | Cendregion -> false (* avoid reordering *)
+||||||| 121bedcfd2
+      | Capply _ | Cextcall _ | Calloc | Cstore _ | Craise _ | Copaque -> false
+=======
+      | Capply _ | Cextcall _ | Calloc | Cstore _ | Craise _ | Copaque
+      | Cpoll -> false
+>>>>>>> ocaml/trunk
         (* The remaining operations are simple if their args are *)
       | Cload _ | Caddi | Csubi | Cmuli | Cmulhi | Cdivi | Cmodi | Cand | Cor
       | Cxor | Clsl | Clsr | Casr | Ccmpi _ | Caddv | Cadda | Ccmpa _ | Cnegf
@@ -408,7 +421,7 @@ method effects_of exp =
   let module EC = Effect_and_coeffect in
   match exp with
   | Cconst_int _ | Cconst_natint _ | Cconst_float _ | Cconst_symbol _
-  | Cvar _ -> EC.none
+  | Cvar _ | Creturn_addr -> EC.none
   | Ctuple el -> EC.join_list_map el self#effects_of
   | Clet (_id, arg, body) | Clet_mut (_id, _, arg, body) ->
     EC.join (self#effects_of arg) (self#effects_of body)
@@ -421,9 +434,17 @@ method effects_of exp =
   | Cop (op, args, _) ->
     let from_op =
       match op with
+<<<<<<< HEAD
       | Capply _ | Cextcall _ | Cprobe _ | Copaque -> EC.arbitrary
       | Calloc Alloc_heap -> EC.none
       | Calloc Alloc_local -> EC.coeffect_only Coeffect.Arbitrary
+||||||| 121bedcfd2
+      | Capply _ | Cextcall _ | Copaque -> EC.arbitrary
+      | Calloc -> EC.none
+=======
+      | Capply _ | Cextcall _ | Copaque | Cpoll -> EC.arbitrary
+      | Calloc -> EC.none
+>>>>>>> ocaml/trunk
       | Cstore _ -> EC.effect_only Effect.Arbitrary
       | Cbeginregion | Cendregion -> EC.arbitrary
       | Craise _ | Ccheckbound -> EC.effect_only Effect.Raise
@@ -464,6 +485,7 @@ method virtual select_addressing :
 method select_store is_assign addr arg =
   (Istore(Word_val, addr, is_assign), arg)
 
+<<<<<<< HEAD
 (* call marking methods, documented in selectgen.mli *)
 val contains_calls = ref false
 
@@ -498,6 +520,43 @@ method mark_instr = function
     self#mark_call
   | _ -> ()
 
+||||||| 121bedcfd2
+(* call marking methods, documented in selectgen.mli *)
+val contains_calls = ref false
+
+method mark_call =
+  contains_calls := true
+
+method mark_tailcall = ()
+
+method mark_c_tailcall =
+  if !Clflags.debug then contains_calls := true
+
+method mark_instr = function
+  | Iop (Icall_ind | Icall_imm _ | Iextcall _) ->
+      self#mark_call
+  | Iop (Itailcall_ind | Itailcall_imm _) ->
+      self#mark_tailcall
+  | Iop (Ialloc _) | Iop (Ipoll _) ->
+      self#mark_call (* caml_alloc*, caml_garbage_collection (incl. polls) *)
+  | Iop (Iintop (Icheckbound) | Iintop_imm(Icheckbound, _)) ->
+      self#mark_c_tailcall (* caml_ml_array_bound_error *)
+  | Iraise raise_kind ->
+    begin match raise_kind with
+      | Lambda.Raise_notrace -> ()
+      | Lambda.Raise_regular
+      | Lambda.Raise_reraise ->
+          (* PR#6239 *)
+        (* caml_stash_backtrace; we #mark_call rather than
+           #mark_c_tailcall to get a good stack backtrace *)
+          self#mark_call
+    end
+  | Itrywith _ ->
+    self#mark_call
+  | _ -> ()
+
+=======
+>>>>>>> ocaml/trunk
 (* Default instruction selection for operators *)
 
 method select_operation op args _dbg =
@@ -527,6 +586,13 @@ method select_operation op args _dbg =
       end
   | (Calloc mode, _) -> (Ialloc {bytes = 0; dbginfo = []; mode}), args
   | (Cdls_get, _) -> Idls_get, args
+<<<<<<< HEAD
+||||||| 121bedcfd2
+  | (Calloc, _) -> (Ialloc {bytes = 0; dbginfo = []}), args
+=======
+  | (Cpoll, _) -> (Ipoll { return_label = None }), args
+  | (Calloc, _) -> (Ialloc {bytes = 0; dbginfo = []}), args
+>>>>>>> ocaml/trunk
   | (Caddi, _) -> self#select_arith_comm Iadd args
   | (Csubi, _) -> self#select_arith Isub args
   | (Cmuli, _) -> self#select_arith_comm Imul args
@@ -726,7 +792,16 @@ method emit_expr_aux (env:environment) exp :
          registered in the compilation unit's global roots structure, so
          adding this register to the frame table would be redundant *)
       let r = self#regs_for typ_int in
+<<<<<<< HEAD
       ret (self#insert_op env (Iconst_symbol n) [||] r)
+||||||| 121bedcfd2
+      Some(self#insert_op env (Iconst_symbol n) [||] r)
+=======
+      Some(self#insert_op env (Iconst_symbol n) [||] r)
+  | Creturn_addr ->
+      let r = self#regs_for typ_int in
+      Some(self#insert_op env Ireturn_addr [||] r)
+>>>>>>> ocaml/trunk
   | Cvar v ->
       begin try
         ret (env_find v env)
@@ -1019,7 +1094,7 @@ method private emit_parts (env:environment) ~effects_after exp =
   let module EC = Effect_and_coeffect in
   let may_defer_evaluation =
     let ec = self#effects_of exp in
-    match EC.effect ec with
+    match EC.effect_ ec with
     | Effect.Arbitrary | Effect.Raise ->
       (* Preserve the ordering of effectful expressions by evaluating them
          early (in the correct order) and assigning their results to
@@ -1041,14 +1116,14 @@ method private emit_parts (env:environment) ~effects_after exp =
            every [exp'] (for [exp'] as in the comment above) has no effects
            "worse" (in the sense of the ordering in [Effect.t]) than raising
            an exception. *)
-        match EC.effect effects_after with
+        match EC.effect_ effects_after with
         | Effect.None | Effect.Raise -> true
         | Effect.Arbitrary -> false
       end
       | Coeffect.Arbitrary -> begin
         (* Arbitrary expressions may only be deferred if evaluation of
            every [exp'] (for [exp'] as in the comment above) has no effects. *)
-        match EC.effect effects_after with
+        match EC.effect_ effects_after with
         | Effect.None -> true
         | Effect.Arbitrary | Effect.Raise -> false
       end
@@ -1337,6 +1412,7 @@ method emit_tail (env:environment) exp =
   | Cop _
   | Cconst_int _ | Cconst_natint _ | Cconst_float _ | Cconst_symbol _
   | Cvar _
+  | Creturn_addr
   | Cassign _
   | Ctuple _
   | Cexit _ ->
@@ -1375,7 +1451,6 @@ method emit_fundecl ~future_funcnames f =
       body
     in
   let body_with_prologue = self#extract_onto polled_body in
-  instr_iter (fun instr -> self#mark_instr instr.Mach.desc) body_with_prologue;
   { fun_name = f.Cmm.fun_name;
     fun_args = loc_arg;
     fun_body = body_with_prologue;
@@ -1383,7 +1458,6 @@ method emit_fundecl ~future_funcnames f =
     fun_dbg  = f.Cmm.fun_dbg;
     fun_poll = f.Cmm.fun_poll;
     fun_num_stack_slots = Array.make Proc.num_register_classes 0;
-    fun_contains_calls = !contains_calls;
   }
 
 end

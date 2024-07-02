@@ -148,6 +148,7 @@ let macos = make
     "on a MacOS system"
     "not on a MacOS system")
 
+<<<<<<< HEAD
 let not_macos = make
   ~name:"not-macos"
   ~description:"Pass if not running on a MacOS system"
@@ -155,6 +156,19 @@ let not_macos = make
     "not on a MacOS system"
     "on a MacOS system")
 
+||||||| 121bedcfd2
+=======
+let not_macos_amd64_tsan = make
+  ~name:"not_macos_amd64_tsan"
+  ~description:"Pass if not running on a MacOS amd64 system with TSan enabled"
+  (Actions_helpers.pass_or_skip
+     (not ((Ocamltest_config.system = macos_system)
+           && (String.equal Ocamltest_config.arch "amd64")
+           && (Ocamltest_config.tsan)))
+     "not on a MacOS amd64 system with TSan enabled"
+     "on a MacOS amd64 system with TSan enabled")
+
+>>>>>>> ocaml/trunk
 let arch32 = make
   ~name:"arch32"
   ~description:"Pass if running on a 32-bit architecture"
@@ -204,6 +218,20 @@ let arch_power = make
     "Target is POWER architecture"
     "Target is not POWER architecture")
 
+let arch_riscv64 = make
+  ~name:"arch_riscv64"
+  ~description:"Pass if target is a RiscV64 architecture"
+  (Actions_helpers.pass_or_skip (String.equal Ocamltest_config.arch "riscv64")
+     "Target is RiscV64 architecture"
+     "Target is not RiscV64 architecture")
+
+let arch_s390x = make
+  ~name:"arch_s390x"
+  ~description:"Pass if target is a S390x architecture"
+  (Actions_helpers.pass_or_skip (String.equal Ocamltest_config.arch "s390x")
+     "Target is S390x architecture"
+     "Target is not S390x architecture")
+
 let function_sections = make
   ~name:"function_sections"
   ~description:"Pass if target supports function sections"
@@ -218,6 +246,7 @@ let frame_pointers = make
      "frame-pointers available"
      "frame-pointers not available")
 
+<<<<<<< HEAD
 let probes = make
   ~name:"probes"
   ~description:"Pass if probes are available"
@@ -232,6 +261,23 @@ let naked_pointers = make
      "Runtime system supports naked pointers"
      "Runtime system does not support naked pointers")
 
+||||||| 121bedcfd2
+=======
+let tsan = make
+  ~name:"tsan"
+  ~description:"Pass if thread sanitizer is supported"
+  (Actions_helpers.pass_or_skip (Ocamltest_config.tsan)
+     "tsan available"
+     "tsan not available")
+
+let no_tsan = make
+  ~name:"no-tsan"
+  ~description:"Pass if thread sanitizer is not supported"
+  (Actions_helpers.pass_or_skip (not Ocamltest_config.tsan)
+     "tsan not available"
+     "tsan available")
+
+>>>>>>> ocaml/trunk
 let has_symlink = make
   ~name:"has_symlink"
   ~description:"Pass if symbolic links are available"
@@ -350,7 +396,12 @@ let _ =
     bsd;
     not_bsd;
     macos;
+<<<<<<< HEAD
     not_macos;
+||||||| 121bedcfd2
+=======
+    not_macos_amd64_tsan;
+>>>>>>> ocaml/trunk
     arch32;
     arch64;
     has_symlink;
@@ -364,11 +415,19 @@ let _ =
     arch_amd64;
     arch_i386;
     arch_power;
+    arch_riscv64;
+    arch_s390x;
     function_sections;
     frame_pointers;
     naked_pointers;
     file_exists;
     copy;
+<<<<<<< HEAD
     probes;
     naked_pointers
+||||||| 121bedcfd2
+=======
+    tsan;
+    no_tsan;
+>>>>>>> ocaml/trunk
   ]

@@ -64,9 +64,11 @@ sp is a local copy of the global variable Caml_state->extern_sp. */
 #  else
 #    define Next goto *(void *)(jumptbl_base + *pc++)
 #  endif
+#  define Fallthrough ((void) 0)
 #else
 #  define Instruct(name) case name
 #  define Next break
+#  define Fallthrough fallthrough
 #endif
 
 /* GC interface */
@@ -91,7 +93,9 @@ sp is a local copy of the global variable Caml_state->extern_sp. */
   { sp -= 2; sp[0] = env; sp[1] = (value)(pc + 1); \
     domain_state->current_stack->sp = sp; }
 #define Restore_after_c_call \
-  { sp = domain_state->current_stack->sp; env = *sp; sp += 2; }
+  { sp = domain_state->current_stack->sp; env = *sp; sp += 2; \
+    caml_update_young_limit_after_c_call(domain_state);       \
+  }
 
 /* For VM threads purposes, an event frame must look like accu + a
    C_CALL frame + a RETURN 1 frame.
@@ -207,7 +211,7 @@ Caml_inline void check_trap_barrier_for_effect
 #define ACCU_REG asm("%r16")
 #endif
 #ifdef __mc68000__
-#define PC_REG asm("a5")
+#define PC_REG asm("a3")
 #define SP_REG asm("a4")
 #define ACCU_REG asm("d7")
 #endif
@@ -237,13 +241,15 @@ Caml_inline void check_trap_barrier_for_effect
 #endif
 
 #ifdef DEBUG
-static __thread intnat caml_bcodcount;
+static CAMLthread_local intnat caml_bcodcount;
 #endif
 
 static value raise_unhandled_effect;
 
 /* The interpreter itself */
 
+CAMLno_tsan /* No need to TSan-instrument this (and pay a slowdown) function as
+               TSan is not supported for bytecode. */
 value caml_interprete(code_t prog, asize_t prog_size)
 {
 #ifdef PC_REG
@@ -272,6 +278,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
   volatile value raise_async_exn_bucket = Val_unit;
   struct longjmp_buffer raise_buf, raise_async_buf;
   value resume_fn, resume_arg;
+  struct stack_info* resume_tail;
   caml_domain_state* domain_state = Caml_state;
   struct caml_exception_context exception_ctx =
     { &raise_buf, domain_state->local_roots, &raise_exn_bucket};
@@ -282,7 +289,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 #endif
 
 #ifdef THREADED_CODE
-  static void * jumptable[] = {
+  static const void * const jumptable[] = {
 #    include "caml/jumptbl.h"
   };
 #endif
@@ -453,7 +460,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHACC):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(ACC):
       accu = sp[*pc++];
       Next;
@@ -488,7 +495,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHENVACC):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(ENVACC):
       accu = Field(env, *pc++);
       Next;
@@ -734,20 +741,20 @@ value caml_interprete(code_t prog, asize_t prog_size)
     }
 
     Instruct(PUSHOFFSETCLOSURE):
-      *--sp = accu; /* fallthrough */
+      *--sp = accu; Fallthrough;
     Instruct(OFFSETCLOSURE):
       accu = env + *pc++ * sizeof(value); Next;
 
     Instruct(PUSHOFFSETCLOSUREM3):
-      *--sp = accu; /* fallthrough */
+      *--sp = accu; Fallthrough;
     Instruct(OFFSETCLOSUREM3):
       accu = env - 3 * sizeof(value); Next;
     Instruct(PUSHOFFSETCLOSURE0):
-      *--sp = accu; /* fallthrough */
+      *--sp = accu; Fallthrough;
     Instruct(OFFSETCLOSURE0):
       accu = env; Next;
     Instruct(PUSHOFFSETCLOSURE3):
-      *--sp = accu; /* fallthrough */
+      *--sp = accu; Fallthrough;
     Instruct(OFFSETCLOSURE3):
       accu = env + 3 * sizeof(value); Next;
 
@@ -756,7 +763,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHGETGLOBAL):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(GETGLOBAL):
       accu = Field(caml_global_data, *pc);
       pc++;
@@ -764,7 +771,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHGETGLOBALFIELD):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(GETGLOBALFIELD): {
       accu = Field(caml_global_data, *pc);
       pc++;
@@ -784,13 +791,13 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHATOM0):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(ATOM0):
       accu = Atom(0); Next;
 
     Instruct(PUSHATOM):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(ATOM):
       accu = Atom(*pc++); Next;
 
@@ -1077,7 +1084,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
         }
         sp = domain_state->current_stack->sp;
       }
-      /* Fall through CHECK_SIGNALS */
+      Fallthrough; /* CHECK_SIGNALS */
 
 /* Signal handling */
 
@@ -1161,7 +1168,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
 
     Instruct(PUSHCONSTINT):
       *--sp = accu;
-      /* Fallthrough */
+      Fallthrough;
     Instruct(CONSTINT):
       accu = Val_int(*pc);
       pc++;
@@ -1298,7 +1305,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
       *--sp = accu;
       accu = Val_int(*pc);
       pc += 2;
-      /* Fallthrough */
+      Fallthrough;
 #endif
     Instruct(GETDYNMET): {
       /* accu == tag, sp[0] == object, *pc == cache */
@@ -1341,7 +1348,8 @@ value caml_interprete(code_t prog, asize_t prog_size)
     Instruct(RESUME):
       resume_fn = sp[0];
       resume_arg = sp[1];
-      sp -= 3;
+      resume_tail = Ptr_val(sp[2]);
+      sp -= 2;
       sp[0] = Val_long(domain_state->trap_sp_off);
       sp[1] = Val_long(0);
       sp[2] = (value)pc;
@@ -1355,11 +1363,13 @@ do_resume: {
         Setup_for_c_call;
         caml_raise_continuation_already_resumed();
       }
-      while (Stack_parent(stk) != NULL) stk = Stack_parent(stk);
-      Stack_parent(stk) = Caml_state->current_stack;
+      if (resume_tail == NULL) {
+        resume_tail = stk;
+      }
+      Stack_parent(resume_tail) = Caml_state->current_stack;
 
       domain_state->current_stack->sp = sp;
-      domain_state->current_stack = Ptr_val(accu);
+      domain_state->current_stack = stk;
       sp = domain_state->current_stack->sp;
 
       domain_state->trap_sp_off = Long_val(sp[0]);
@@ -1374,6 +1384,7 @@ do_resume: {
     Instruct(RESUMETERM):
       resume_fn = sp[0];
       resume_arg = sp[1];
+      resume_tail = Ptr_val(sp[2]);
       sp = sp + *pc - 2;
       sp[0] = Val_long(domain_state->trap_sp_off);
       sp[1] = Val_long(extra_args);
@@ -1393,7 +1404,7 @@ do_resume: {
         goto raise_exception;
       }
 
-      Alloc_small(cont, 1, Cont_tag, Enter_gc);
+      Alloc_small(cont, 2, Cont_tag, Enter_gc);
 
       sp -= 4;
       sp[0] = Val_long(domain_state->trap_sp_off);
@@ -1406,6 +1417,7 @@ do_resume: {
       sp = parent_stack->sp;
       Stack_parent(old_stack) = NULL;
       Field(cont, 0) = Val_ptr(old_stack);
+      Field(cont, 1) = Val_ptr(old_stack);
 
       domain_state->trap_sp_off = Long_val(sp[0]);
       extra_args = Long_val(sp[1]);
@@ -1438,6 +1450,7 @@ do_resume: {
         accu = caml_continuation_use(cont);
         Restore_after_c_call;
         resume_fn = raise_unhandled_effect;
+        resume_tail = cont_tail;
 
         goto do_resume;
       }
@@ -1449,6 +1462,7 @@ do_resume: {
       CAMLassert(Stack_parent(cont_tail) == NULL);
       Stack_parent(self) = NULL;
       Stack_parent(cont_tail) = self;
+      Field(cont, 1) = Val_ptr(self);
 
       domain_state->trap_sp_off = Long_val(sp[0]);
       extra_args = Long_val(sp[1]);

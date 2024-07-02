@@ -175,6 +175,7 @@ and operation =
   | Copaque (* Sys.opaque_identity *)
   | Cbeginregion | Cendregion
   | Cdls_get
+  | Cpoll
 
 (* This is information used exclusively during construction of cmm terms by
    cmmgen, and thus irrelevant for selectgen. *)
@@ -213,9 +214,16 @@ type expression =
         * kind_for_unboxing
   | Cexit of int * expression list
   | Ctrywith of expression * Backend_var.With_provenance.t * expression
+<<<<<<< HEAD
       * Debuginfo.t * kind_for_unboxing
   | Cregion of expression
   | Cexclave of expression
+||||||| 121bedcfd2
+      * Debuginfo.t
+=======
+      * Debuginfo.t
+  | Creturn_addr (** Return address saved in the current call frame *)
+>>>>>>> ocaml/trunk
 
 type codegen_option =
   | Reduce_code_size

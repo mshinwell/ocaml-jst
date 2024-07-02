@@ -1,7 +1,13 @@
 (* TEST
+<<<<<<< HEAD
  ocamlopt_flags += " -O3 ";
  reason = "CR ocaml 5 domains: re-enable this test";
  skip;
+||||||| 121bedcfd2
+   ocamlopt_flags += " -O3 "
+=======
+ ocamlopt_flags += " -O3 ";
+>>>>>>> ocaml/trunk
 *)
 let rec safe_force l =
   try Lazy.force l with

@@ -92,6 +92,48 @@ let temp_file_key = Domain.DLS.new_key (fun _ ->
     to close it, thus guaranteeing the descriptor is not leaked in
     case the current domain exits. *)
 
+<<<<<<< HEAD
+||||||| 121bedcfd2
+val cpu_relax : unit -> unit
+(** If busy-waiting, calling cpu_relax () between iterations
+    will improve performance on some CPU architectures *)
+
+val is_main_domain : unit -> bool
+(** [is_main_domain ()] returns true if called from the initial domain. *)
+
+val recommended_domain_count : unit -> int
+(** The recommended maximum number of domains which should be running
+    simultaneously (including domains already running).
+
+    The value returned is at least [1]. *)
+
+=======
+val cpu_relax : unit -> unit
+(** If busy-waiting, calling cpu_relax () between iterations
+    will improve performance on some CPU architectures *)
+
+val is_main_domain : unit -> bool
+(** [is_main_domain ()] returns true if called from the initial domain. *)
+
+val recommended_domain_count : unit -> int
+(** The recommended maximum number of domains which should be running
+    simultaneously (including domains already running).
+
+    The value returned is at least [1]. *)
+
+val self_index : unit -> int
+(** The index of the current domain. It is an integer unique among
+    currently-running domains, in the interval [0; N-1] where N is the
+    peak number of domains running simultaneously so far.
+
+    The index of a terminated domain may be reused for a new
+    domain. Use [(Domain.self () :> int)] instead for an identifier
+    unique among all domains ever created by the program.
+
+    @since 5.3
+*)
+
+>>>>>>> ocaml/trunk
 module DLS : sig
 (** Domain-local Storage *)
 
@@ -105,6 +147,13 @@ module DLS : sig
         If [split_from_parent] is not provided, the value for a new
         domain will be computed on-demand by the new domain: the first
         [get] call will call the initializer [f] and store that value.
+
+        {b Warning.} [f] may be called several times if another call
+        to [get] occurs during initialization on the same domain. Only
+        the 'first' value computed will be used, the other now-useless
+        values will be discarded. Your initialization function should
+        support this situation, or contain logic to detect this case
+        and fail.
 
         If [split_from_parent] is provided, spawning a domain will
         derive the child value (for this key) from the parent

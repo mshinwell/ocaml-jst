@@ -1,2 +1,9 @@
+<<<<<<< HEAD
 Run without exception.
 Exception from memprof.
+||||||| 121bedcfd2
+Fatal error: exception Failure("callback failed")
+=======
+Run without exception.
+Exception from major allocation callback.
+>>>>>>> ocaml/trunk

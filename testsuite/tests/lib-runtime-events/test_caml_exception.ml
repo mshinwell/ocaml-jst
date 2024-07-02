@@ -1,4 +1,5 @@
 (* TEST
+<<<<<<< HEAD
  {
    include runtime_events;
    runtime5;
@@ -6,6 +7,11 @@
    runtime4;
    skip;
  }
+||||||| 121bedcfd2
+include runtime_events
+=======
+ include runtime_events;
+>>>>>>> ocaml/trunk
 *)
 open Runtime_events
 

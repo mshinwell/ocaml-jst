@@ -382,3 +382,4 @@ let primitive ppf (prim:Clambda_primitives.primitive) =
   | Punbox_int bi -> fprintf ppf "unbox_%s" (boxed_integer_name bi)
   | Pget_header m -> fprintf ppf "get_header.%s" (alloc_kind m)
   | Pdls_get -> fprintf ppf "dls_get"
+  | Ppoll -> fprintf ppf "poll"

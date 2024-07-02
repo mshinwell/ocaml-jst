@@ -1,6 +1,13 @@
+<<<<<<< HEAD
 (* TEST
  skip;
 *)
+||||||| 121bedcfd2
+(* TEST
+ *)
+=======
+(* TEST *)
+>>>>>>> ocaml/trunk
 
 open Effect
 open Effect.Deep

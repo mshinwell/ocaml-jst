@@ -17,6 +17,7 @@
 
 module Name = Odoc_name
 let () = Printtyp.Naming_context.enable false
+module Printtyp = Printtyp.Compat
 
 let string_of_variance t v =
   if ( t.Odoc_type.ty_kind = Odoc_type.Type_abstract ||
@@ -135,8 +136,16 @@ let string_of_class_params c =
         Printf.bprintf b "%s%s%s%s -> "
           (
            match label with
+<<<<<<< HEAD
              Types.Nolabel -> ""
            | s -> Printtyp.string_of_label s ^":"
+||||||| 121bedcfd2
+             Asttypes.Nolabel -> ""
+           | s -> Printtyp.string_of_label s ^":"
+=======
+             Asttypes.Nolabel -> ""
+           | s -> Asttypes.string_of_label s ^":"
+>>>>>>> ocaml/trunk
           )
           (if parent then "(" else "")
           (Odoc_print.string_of_type_expr

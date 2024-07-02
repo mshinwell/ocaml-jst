@@ -1,8 +1,18 @@
+<<<<<<< HEAD
 (* TEST_BELOW
 (* Blank lines added here to preserve locations. *)
 
 
 
+||||||| 121bedcfd2
+(* TEST
+   flags = "-g"
+   ocamlrunparam += ",b=1"
+=======
+(* TEST_BELOW
+(* Blank lines added here to preserve locations. *)
+
+>>>>>>> ocaml/trunk
 *)
 
 open Effect
@@ -54,9 +64,18 @@ let main () =
       | _ -> None }
 
 let _ = main ()
+<<<<<<< HEAD
 
 (* TEST
  flags = "-g";
  ocamlrunparam += ",b=1";
  skip;
 *)
+||||||| 121bedcfd2
+=======
+
+(* TEST
+ flags = "-g";
+ ocamlrunparam += ",b=1";
+*)
+>>>>>>> ocaml/trunk

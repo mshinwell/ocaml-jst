@@ -23,6 +23,7 @@
 #include <pthread.h>
 #include <string.h>
 
+<<<<<<< HEAD
 #ifdef __linux__
 #include <features.h>
 #include <unistd.h>
@@ -31,13 +32,14 @@
 #include <limits.h>
 #endif
 
+||||||| 121bedcfd2
+=======
+#include "caml/sync.h"
+
+>>>>>>> ocaml/trunk
 typedef int sync_retcode;
 
 /* Mutexes */
-
-/* Already defined in <caml/sync.h> */
-/* typedef pthread_mutex_t * sync_mutex; */
-/* #define Mutex_val(v) (* ((sync_mutex *) Data_custom_val(v))) */
 
 Caml_inline int sync_mutex_create(sync_mutex * res)
 {
@@ -166,10 +168,18 @@ static int custom_condvar_broadcast(custom_condvar * cv)
 
 /* Condition variables */
 
+<<<<<<< HEAD
 typedef custom_condvar * sync_condvar;
 
 #define Condition_val(v) (* (sync_condvar *) Data_custom_val(v))
 
+||||||| 121bedcfd2
+typedef pthread_cond_t * sync_condvar;
+
+#define Condition_val(v) (* (sync_condvar *) Data_custom_val(v))
+
+=======
+>>>>>>> ocaml/trunk
 Caml_inline int sync_condvar_create(sync_condvar * res)
 {
   int rc;

@@ -162,8 +162,15 @@ and apply_coercion_result loc strict funct params args cc_res =
              ~return:Lambda.layout_module
              ~attr:{ default_function_attribute with
                         is_a_functor = true;
+<<<<<<< HEAD
                         zero_alloc = Default_zero_alloc;
                         stub = true; }
+||||||| 121bedcfd2
+                        stub = true; }
+=======
+                        stub = true;
+                        may_fuse_arity = true; }
+>>>>>>> ocaml/trunk
              ~loc
              ~mode:alloc_heap
              ~ret_mode:alloc_heap
@@ -575,8 +582,13 @@ let rec compile_functor ~scopes mexp coercion root_path loc =
       zero_alloc = Default_zero_alloc;
       stub = false;
       tmc_candidate = false;
+<<<<<<< HEAD
       may_fuse_arity = true;
       unbox_return = false;
+||||||| 121bedcfd2
+=======
+      may_fuse_arity = true;
+>>>>>>> ocaml/trunk
     }
     ~loc
     ~mode:alloc_heap
@@ -1274,7 +1286,14 @@ let transl_store_structure ~scopes glob map prims aliases str =
             let (ids, class_bindings) = transl_class_bindings ~scopes cl_list in
             let body = store_idents Loc_unknown ids in
             let lam =
+<<<<<<< HEAD
               Value_rec_compiler.compile_letrec class_bindings body
+||||||| 121bedcfd2
+              Lletrec(class_bindings, store_idents Loc_unknown ids)
+=======
+              Value_rec_compiler.compile_letrec class_bindings
+                (store_idents Loc_unknown ids)
+>>>>>>> ocaml/trunk
             in
             Lsequence(Lambda.subst no_env_update subst lam,
                       transl_store ~scopes rootpath (add_idents false ids subst)
@@ -1671,8 +1690,15 @@ let transl_toplevel_item ~scopes item =
          be a value named identically *)
       let (ids, class_bindings) = transl_class_bindings ~scopes cl_list in
       List.iter set_toplevel_unique_name ids;
+<<<<<<< HEAD
       let body = make_sequence toploop_setvalue_id ids in
       Value_rec_compiler.compile_letrec class_bindings body
+||||||| 121bedcfd2
+      Lletrec(class_bindings, make_sequence toploop_setvalue_id ids)
+=======
+      Value_rec_compiler.compile_letrec class_bindings
+        (make_sequence toploop_setvalue_id ids)
+>>>>>>> ocaml/trunk
   | Tstr_include incl ->
       let ids = bound_value_identifiers incl.incl_type in
       let loc = of_location ~scopes incl.incl_loc in
@@ -1840,13 +1866,14 @@ let transl_package component_names target_name coercion ~style =
 
 (* Error report *)
 
-open Format
+open Format_doc
+module Style = Misc.Style
 
 let print_cycle ppf cycle =
-  let print_ident ppf (x,_) = Format.pp_print_string ppf (Ident.name x) in
+  let print_ident ppf (x,_) = pp_print_string ppf (Ident.name x) in
   let pp_sep ppf () = fprintf ppf "@ -> " in
-  Format.fprintf ppf "%a%a%s"
-    (Format.pp_print_list ~pp_sep print_ident) cycle
+  fprintf ppf "%a%a%s"
+    (pp_print_list ~pp_sep print_ident) cycle
     pp_sep ()
     (Ident.name @@ fst @@ List.hd cycle)
 (* we repeat the first element to make the cycle more apparent *)
@@ -1856,18 +1883,28 @@ let explanation_submsg (id, unsafe_info) =
   | Unnamed -> assert false (* can't be part of a cycle. *)
   | Unsafe {reason;loc;subid} ->
       let print fmt =
-        let printer = Format.dprintf fmt (Ident.name id) (Ident.name subid) in
+        let printer = doc_printf fmt
+            Style.inline_code (Ident.name id)
+            Style.inline_code (Ident.name subid) in
         Location.mkloc printer loc in
       match reason with
       | Unsafe_module_binding ->
-          print "Module %s defines an unsafe module, %s ."
-      | Unsafe_functor -> print "Module %s defines an unsafe functor, %s ."
+          print "Module %a defines an unsafe module, %a ."
+      | Unsafe_functor -> print "Module %a defines an unsafe functor, %a ."
       | Unsafe_typext ->
+<<<<<<< HEAD
           print "Module %s defines an unsafe extension constructor, %s ."
       | Unsafe_non_function -> print "Module %s defines an unsafe value, %s ."
       | Unsafe_non_value_arg ->
         print "Module %s defines a function whose first argument \
                is not a value, %s ."
+||||||| 121bedcfd2
+          print "Module %s defines an unsafe extension constructor, %s ."
+      | Unsafe_non_function -> print "Module %s defines an unsafe value, %s ."
+=======
+          print "Module %a defines an unsafe extension constructor, %a ."
+      | Unsafe_non_function -> print "Module %a defines an unsafe value, %a ."
+>>>>>>> ocaml/trunk
 
 let report_error loc = function
   | Circular_dependency cycle ->
@@ -1878,6 +1915,7 @@ let report_error loc = function
          There are no safe modules in this cycle@ %a."
         print_cycle cycle Misc.print_see_manual manual_ref
   | Conflicting_inline_attributes ->
+<<<<<<< HEAD
       Location.errorf "@[Conflicting 'inline' attributes@]"
   | Non_value_jkind (ty, sort) ->
       Location.errorf
@@ -1885,6 +1923,12 @@ let report_error loc = function
          Please report this error to the Jane Street compilers team."
         Jkind.Sort.format sort
         Printtyp.type_expr ty
+||||||| 121bedcfd2
+      Location.errorf "@[Conflicting 'inline' attributes@]"
+=======
+      Location.errorf "@[Conflicting %a attributes@]"
+        Style.inline_code "inline"
+>>>>>>> ocaml/trunk
 
 let () =
   Location.register_error_of_exn

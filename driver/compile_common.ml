@@ -16,22 +16,26 @@
 open Misc
 
 type info = {
+<<<<<<< HEAD
   source_file : string;
   module_name : Compilation_unit.t;
   output_prefix : string;
+||||||| 121bedcfd2
+  source_file : string;
+  module_name : string;
+  output_prefix : string;
+=======
+  target: Unit_info.t;
+>>>>>>> ocaml/trunk
   env : Env.t;
   ppf_dump : Format.formatter;
   tool_name : string;
   native : bool;
 }
 
-let cmx i = i.output_prefix ^ ".cmx"
-let obj i = i.output_prefix ^ Config.ext_obj
-let cmo i = i.output_prefix ^ ".cmo"
-let annot i = i.output_prefix ^ ".annot"
-
 let with_info ~native ~tool_name ~source_file ~output_prefix ~dump_ext k =
   Compmisc.init_path ();
+<<<<<<< HEAD
   let module_name = Compenv.module_of_filename source_file output_prefix in
   let for_pack_prefix = Compilation_unit.Prefix.from_clflags () in
   let compilation_unit =
@@ -39,14 +43,27 @@ let with_info ~native ~tool_name ~source_file ~output_prefix ~dump_ext k =
       (module_name |> Compilation_unit.Name.of_string)
   in
   Compilation_unit.set_current (Some compilation_unit);
+||||||| 121bedcfd2
+  let module_name = Compenv.module_of_filename source_file output_prefix in
+  Env.set_unit_name module_name;
+=======
+  let target = Unit_info.make ~source_file output_prefix in
+  Env.set_unit_name (Unit_info.modname target);
+>>>>>>> ocaml/trunk
   let env = Compmisc.initial_env() in
   let dump_file = String.concat "." [output_prefix; dump_ext] in
   Compmisc.with_ppf_dump ~file_prefix:dump_file (fun ppf_dump ->
   k {
+<<<<<<< HEAD
     module_name = compilation_unit;
     output_prefix;
+||||||| 121bedcfd2
+    module_name;
+    output_prefix;
+=======
+    target;
+>>>>>>> ocaml/trunk
     env;
-    source_file;
     ppf_dump;
     tool_name;
     native;
@@ -55,7 +72,7 @@ let with_info ~native ~tool_name ~source_file ~output_prefix ~dump_ext k =
 (** Compile a .mli file *)
 
 let parse_intf i =
-  Pparse.parse_interface ~tool_name:i.tool_name i.source_file
+  Pparse.parse_interface ~tool_name:i.tool_name (Unit_info.source_file i.target)
   |> print_if i.ppf_dump Clflags.dump_parsetree Printast.interface
   |> print_if i.ppf_dump Clflags.dump_source Pprintast.signature
 
@@ -67,20 +84,22 @@ let typecheck_intf info ast =
          ~sourcefile:info.source_file info.module_name info.env
     |> print_if info.ppf_dump Clflags.dump_typedtree Printtyped.interface
   in
+  let alerts = Builtin_attributes.alerts_of_sig ~mark:true ast in
   let sg = tsg.Typedtree.sig_type in
   if !Clflags.print_types then
     Printtyp.wrap_printing_env ~error:false info.env (fun () ->
         Format.(fprintf std_formatter) "%a@."
-          (Printtyp.printed_signature info.source_file)
+          (Printtyp.printed_signature (Unit_info.source_file info.target))
           sg);
   ignore (Includemod.signatures info.env ~mark:Mark_both sg sg);
   Typecore.force_delayed_checks ();
   Builtin_attributes.warn_unused ();
   Warnings.check_fatal ();
-  tsg
+  alerts, tsg
 
-let emit_signature info ast tsg =
+let emit_signature info alerts tsg =
   let sg =
+<<<<<<< HEAD
     let name = Compilation_unit.name info.module_name in
     let kind : Cmi_format.kind =
       if !Clflags.as_parameter then
@@ -95,21 +114,44 @@ let emit_signature info ast tsg =
       end
     in
     let alerts = Builtin_attributes.alerts_of_sig ast in
+||||||| 121bedcfd2
+    let alerts = Builtin_attributes.alerts_of_sig ast in
+=======
+>>>>>>> ocaml/trunk
     Env.save_signature ~alerts tsg.Typedtree.sig_type
+<<<<<<< HEAD
       name kind (info.output_prefix ^ ".cmi")
+||||||| 121bedcfd2
+      info.module_name (info.output_prefix ^ ".cmi")
+=======
+      (Unit_info.cmi info.target)
+>>>>>>> ocaml/trunk
   in
-  Typemod.save_signature info.module_name tsg
-    info.output_prefix info.source_file info.env sg
+  Typemod.save_signature info.target tsg info.env sg
 
+<<<<<<< HEAD
 let interface ~hook_parse_tree ~hook_typed_tree info =
   Profile.record_call info.source_file @@ fun () ->
+||||||| 121bedcfd2
+let interface info =
+  Profile.record_call info.source_file @@ fun () ->
+=======
+let interface info =
+  Profile.record_call (Unit_info.source_file info.target) @@ fun () ->
+>>>>>>> ocaml/trunk
   let ast = parse_intf info in
   hook_parse_tree ast;
   if Clflags.(should_stop_after Compiler_pass.Parsing) then () else begin
+<<<<<<< HEAD
     let tsg = typecheck_intf info ast in
     hook_typed_tree tsg;
+||||||| 121bedcfd2
+    let tsg = typecheck_intf info ast in
+=======
+    let alerts, tsg = typecheck_intf info ast in
+>>>>>>> ocaml/trunk
     if not !Clflags.print_types then begin
-      emit_signature info ast tsg
+      emit_signature info alerts tsg
     end
   end
 
@@ -117,25 +159,45 @@ let interface ~hook_parse_tree ~hook_typed_tree info =
 (** Frontend for a .ml file *)
 
 let parse_impl i =
-  Pparse.parse_implementation ~tool_name:i.tool_name i.source_file
+  let sourcefile = Unit_info.source_file i.target in
+  Pparse.parse_implementation ~tool_name:i.tool_name sourcefile
   |> print_if i.ppf_dump Clflags.dump_parsetree Printast.implementation
   |> print_if i.ppf_dump Clflags.dump_source Pprintast.structure
 
 let typecheck_impl i parsetree =
   parsetree
   |> Profile.(record typing)
+<<<<<<< HEAD
     (Typemod.type_implementation
        ~sourcefile:i.source_file i.output_prefix i.module_name i.env)
+||||||| 121bedcfd2
+    (Typemod.type_implementation
+       i.source_file i.output_prefix i.module_name i.env)
+=======
+    (Typemod.type_implementation i.target i.env)
+>>>>>>> ocaml/trunk
   |> print_if i.ppf_dump Clflags.dump_typedtree
     Printtyped.implementation_with_coercion
   |> print_if i.ppf_dump Clflags.dump_shape
     (fun fmt {Typedtree.shape; _} -> Shape.print fmt shape)
 
+<<<<<<< HEAD
 let implementation ~hook_parse_tree ~hook_typed_tree info ~backend =
   Profile.record_call info.source_file @@ fun () ->
+||||||| 121bedcfd2
+let implementation info ~backend =
+  Profile.record_call info.source_file @@ fun () ->
+=======
+let implementation info ~backend =
+  Profile.record_call (Unit_info.source_file info.target) @@ fun () ->
+>>>>>>> ocaml/trunk
   let exceptionally () =
-    let sufs = if info.native then [ cmx; obj ] else [ cmo ] in
-    List.iter (fun suf -> remove_file (suf info)) sufs;
+    let sufs =
+      if info.native then Unit_info.[ cmx; obj ]
+      else Unit_info.[ cmo ] in
+    List.iter
+      (fun suf -> remove_file (Unit_info.Artifact.filename @@ suf info.target))
+      sufs;
   in
   Misc.try_finally ?always:None ~exceptionally (fun () ->
     let parsed = parse_impl info in
@@ -147,7 +209,12 @@ let implementation ~hook_parse_tree ~hook_typed_tree info ~backend =
         backend info typed;
       end;
     end;
+<<<<<<< HEAD
     if not (Clflags.(should_stop_after Compiler_pass.Selection)) then
       Builtin_attributes.warn_unchecked_zero_alloc_attribute ();
+||||||| 121bedcfd2
+=======
+    Builtin_attributes.warn_unused ();
+>>>>>>> ocaml/trunk
     Warnings.check_fatal ();
   )

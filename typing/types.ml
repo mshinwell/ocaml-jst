@@ -30,8 +30,12 @@ let is_mutable = function
 type transient_expr =
   { mutable desc: type_desc;
     mutable level: int;
-    mutable scope: int;
+    mutable scope: scope_field;
     id: int }
+
+and scope_field = int
+  (* bit field: 27 bits for scope (Ident.highest_scope = 100_000_000)
+     and at least 4 marks *)
 
 and type_expr = transient_expr
 
@@ -114,6 +118,8 @@ module TransientTypeOps = struct
   let equal t1 t2 = t1 == t2
 end
 
+module TransientTypeHash = Hashtbl.Make(TransientTypeOps)
+
 (* *)
 
 module Uid = Shape.Uid
@@ -195,6 +201,7 @@ module Variance = struct
   let unknown = 7
   let full = single Inv
   let covariant = single Pos
+  let contravariant = single Neg
   let swap f1 f2 v v' =
     set_if (mem f2 v) f1 (set_if (mem f1 v) f2 v')
   let conjugate v =
@@ -270,11 +277,18 @@ type type_declaration =
 and type_decl_kind = (label_declaration, constructor_declaration) type_kind
 
 and ('lbl, 'cstr) type_kind =
+<<<<<<< HEAD
     Type_abstract of abstract_reason
+||||||| 121bedcfd2
+    Type_abstract
+=======
+    Type_abstract of type_origin
+>>>>>>> ocaml/trunk
   | Type_record of 'lbl list * record_representation
   | Type_variant of 'cstr list * variant_representation
   | Type_open
 
+<<<<<<< HEAD
 and tag = Ordinary of {src_index: int;     (* Unique name (per type) *)
                        runtime_tag: int}   (* The runtime tag *)
         | Extension of Path.t * jkind array
@@ -297,6 +311,14 @@ and mixed_product_shape =
     flat_suffix : flat_element array;
   }
 
+||||||| 121bedcfd2
+=======
+and type_origin =
+    Definition
+  | Rec_check_regularity
+  | Existential of string
+
+>>>>>>> ocaml/trunk
 and record_representation =
   | Record_unboxed
   | Record_inlined of tag * variant_representation
@@ -856,12 +878,48 @@ let repr t =
      repr_link1 t t'
  | _ -> t
 
+(* scope_field and marks *)
+
+let scope_mask = (1 lsl 27) - 1
+let marks_mask = (-1) lxor scope_mask
+let () = assert (Ident.highest_scope land marks_mask = 0)
+
+type type_mark =
+  | Mark of {mark: int; mutable marked: type_expr list}
+  | Hash of {visited: unit TransientTypeHash.t}
+let type_marks =
+  (* All the bits in marks_mask *)
+  List.init (Sys.int_size - 27) (fun x -> 1 lsl (x + 27))
+let available_marks = Local_store.s_ref type_marks
+let with_type_mark f =
+  match !available_marks with
+  | mark :: rem as old ->
+      available_marks := rem;
+      let mk = Mark {mark; marked = []} in
+      Misc.try_finally (fun () -> f mk) ~always: begin fun () ->
+        available_marks := old;
+        match mk with
+        | Mark {marked} ->
+            (* unmark marked type nodes *)
+            List.iter
+              (fun ty -> ty.scope <- ty.scope land ((-1) lxor mark))
+              marked
+        | Hash _ -> ()
+      end
+  | [] ->
+      (* When marks are exhausted, fall back to using a hash table *)
+      f (Hash {visited = TransientTypeHash.create 1})
+
 (* getters for type_expr *)
 
 let get_desc t = (repr t).desc
 let get_level t = (repr t).level
-let get_scope t = (repr t).scope
+let get_scope t = (repr t).scope land scope_mask
 let get_id t = (repr t).id
+let not_marked_node mark t =
+  match mark with
+  | Mark {mark} -> (repr t).scope land mark = 0
+  | Hash {visited} -> not (TransientTypeHash.mem visited (repr t))
 
 (* transient type_expr *)
 
@@ -874,16 +932,38 @@ module Transient_expr = struct
     | _ -> assert false);
     ty.desc <- d
   let set_level ty lv = ty.level <- lv
+<<<<<<< HEAD
   let set_scope ty sc = ty.scope <- sc
   let set_var_jkind ty jkind' =
     match ty.desc with
     | Tvar { name; _ } ->
       set_desc ty (Tvar { name; jkind = jkind' })
     | _ -> assert false
+||||||| 121bedcfd2
+  let set_scope ty sc = ty.scope <- sc
+=======
+  let get_scope ty = ty.scope land scope_mask
+  let get_marks ty = ty.scope lsr 27
+  let set_scope ty sc =
+    if (sc land marks_mask <> 0) then
+      invalid_arg "Types.Transient_expr.set_scope";
+    ty.scope <- (ty.scope land marks_mask) lor sc
+  let try_mark_node mark ty =
+    match mark with
+    | Mark ({mark} as mk) ->
+        (ty.scope land mark = 0) && (* mark type node when not marked *)
+        (ty.scope <- ty.scope lor mark; mk.marked <- ty :: mk.marked; true)
+    | Hash {visited} ->
+        not (TransientTypeHash.mem visited ty) &&
+        (TransientTypeHash.add visited ty (); true)
+>>>>>>> ocaml/trunk
   let coerce ty = ty
   let repr = repr
   let type_expr ty = ty
 end
+
+(* setting marks *)
+let try_mark_node mark t = Transient_expr.try_mark_node mark (repr t)
 
 (* Comparison for [type_expr]; cannot be used for functors *)
 
@@ -1020,12 +1100,9 @@ let new_id = Local_store.s_ref (-1)
 
 let create_expr = Transient_expr.create
 
-let newty3 ~level ~scope desc  =
+let proto_newty3 ~level ~scope desc  =
   incr new_id;
   create_expr desc ~level ~scope ~id:!new_id
-
-let newty2 ~level desc =
-  newty3 ~level ~scope:Ident.lowest_scope desc
 
                   (**********************************)
                   (*  Utilities for backtracking    *)
@@ -1091,17 +1168,24 @@ let set_level ty level =
     if ty.id <= !last_snapshot then log_change (Clevel (ty, ty.level));
     Transient_expr.set_level ty level
   end
+
 (* TODO: introduce a guard and rename it to set_higher_scope? *)
 let set_scope ty scope =
   let ty = repr ty in
-  if scope <> ty.scope then begin
-    if ty.id <= !last_snapshot then log_change (Cscope (ty, ty.scope));
+  let prev_scope = ty.scope land marks_mask in
+  if scope <> prev_scope then begin
+    if ty.id <= !last_snapshot then log_change (Cscope (ty, prev_scope));
     Transient_expr.set_scope ty scope
   end
+<<<<<<< HEAD
 let set_var_jkind ty jkind =
   let ty = repr ty in
   log_type ty;
   Transient_expr.set_var_jkind ty jkind
+||||||| 121bedcfd2
+=======
+
+>>>>>>> ocaml/trunk
 let set_univar rty ty =
   log_change (Cuniv (rty, !rty)); rty := Some ty
 let set_name nm v =

@@ -1,6 +1,13 @@
+<<<<<<< HEAD
 (* TEST
  skip;
 *)
+||||||| 121bedcfd2
+(* TEST
+ *)
+=======
+(* TEST *)
+>>>>>>> ocaml/trunk
 
 let f x =
   let a0 = ref 1 in

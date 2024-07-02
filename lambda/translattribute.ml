@@ -16,30 +16,104 @@
 open Typedtree
 open Lambda
 open Location
+open Builtin_attributes
 
+<<<<<<< HEAD
 let is_inline_attribute =
   [ ["inline"; "ocaml.inline"],true ]
+||||||| 121bedcfd2
+let is_inline_attribute = function
+  | {txt=("inline"|"ocaml.inline")} -> true
+  | _ -> false
+=======
+let return_if_flambda =
+  if Config.flambda then Return else Mark_used_only
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_inlined_attribute =
   [ ["inlined"; "ocaml.inlined"], true
   ; ["unrolled"; "ocaml.unrolled"], (Config.flambda || Config.flambda2)
   ]
+||||||| 121bedcfd2
+let is_inlined_attribute = function
+  | {txt=("inlined"|"ocaml.inlined")} -> true
+  | {txt=("unrolled"|"ocaml.unrolled")} when Config.flambda -> true
+  | _ -> false
+=======
+let is_inline_attribute =
+  [ "inline", Return ]
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_specialise_attribute =
   [ ["specialise"; "ocaml.specialise"], Config.flambda ]
+||||||| 121bedcfd2
+let is_specialise_attribute = function
+  | {txt=("specialise"|"ocaml.specialise")} when Config.flambda -> true
+  | _ -> false
+=======
+let is_inlined_attribute =
+  [ "inlined", Return
+  ; "unrolled", return_if_flambda
+  ]
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_specialised_attribute =
   [ ["specialised"; "ocaml.specialised"], Config.flambda ]
+||||||| 121bedcfd2
+let is_specialised_attribute = function
+  | {txt=("specialised"|"ocaml.specialised")} when Config.flambda -> true
+  | _ -> false
+=======
+let is_specialise_attribute =
+  [ "specialise", return_if_flambda ]
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_local_attribute =
   [ ["local"; "ocaml.local"], true ]
+||||||| 121bedcfd2
+let is_local_attribute = function
+  | {txt=("local"|"ocaml.local")} -> true
+  | _ -> false
+=======
+let is_specialised_attribute =
+  [ "specialised", return_if_flambda ]
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_tailcall_attribute =
   [ ["tailcall"; "ocaml.tailcall"], true ]
+||||||| 121bedcfd2
+let is_tmc_attribute = function
+  | {txt=("tail_mod_cons"|"ocaml.tail_mod_cons")} -> true
+  | _ -> false
+=======
+let is_local_attribute =
+  [ "local", Return ]
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let is_tmc_attribute =
   [ ["tail_mod_cons"; "ocaml.tail_mod_cons"], true ]
+||||||| 121bedcfd2
+let is_poll_attribute = function
+  | {txt=("poll")} -> true
+  | _ -> false
+=======
+let is_tailcall_attribute =
+  [ "tailcall", Return ]
 
+let is_tmc_attribute =
+  [ "tail_mod_cons", Return ]
+
+let is_poll_attribute =
+  [ "poll", Return ]
+>>>>>>> ocaml/trunk
+
+<<<<<<< HEAD
 let is_poll_attribute =
   [ ["poll"; "ocaml.poll"], true ]
 
@@ -56,6 +130,38 @@ let is_unrolled = function
   | {txt="unrolled"|"ocaml.unrolled"} -> true
   | {txt="inline"|"ocaml.inline"|"inlined"|"ocaml.inlined"} -> false
   | _ -> assert false
+||||||| 121bedcfd2
+let find_attribute p attributes =
+  let inline_attribute, other_attributes =
+    List.partition (fun a -> p a.Parsetree.attr_name) attributes
+  in
+  let attr =
+    match inline_attribute with
+    | [] -> None
+    | [attr] -> Some attr
+    | _ :: {Parsetree.attr_name = {txt;loc}; _} :: _ ->
+      Location.prerr_warning loc (Warnings.Duplicated_attribute txt);
+      None
+  in
+  attr, other_attributes
+
+let is_unrolled = function
+  | {txt="unrolled"|"ocaml.unrolled"} -> true
+  | {txt="inline"|"ocaml.inline"|"inlined"|"ocaml.inlined"} -> false
+  | _ -> assert false
+=======
+let find_attribute p attributes =
+  let inline_attribute = select_attributes p attributes in
+  let attr =
+    match inline_attribute with
+    | [] -> None
+    | [attr] -> Some attr
+    | attr :: {Parsetree.attr_name = {txt;loc}; _} :: _ ->
+      Location.prerr_warning loc (Warnings.Duplicated_attribute txt);
+      Some attr
+  in
+  attr
+>>>>>>> ocaml/trunk
 
 let parse_id_payload txt loc options ~default ~empty payload =
   match
@@ -64,11 +170,132 @@ let parse_id_payload txt loc options ~default ~empty payload =
   | Ok a -> a
   | Error () -> default
 
+<<<<<<< HEAD
 let parse_inline_attribute attr : inline_attribute =
+||||||| 121bedcfd2
+let get_optional_payload get_from_exp =
+  let open Parsetree in
+  function
+  | PStr [] -> Result.Ok None
+  | other -> Result.map Option.some (get_payload get_from_exp other)
+
+let get_id_from_exp =
+  let open Parsetree in
+  function
+  | { pexp_desc = Pexp_ident { txt = Longident.Lident id } } -> Result.Ok id
+  | _ -> Result.Error ()
+
+let get_int_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc = Pexp_constant (Pconst_integer(s, None)) } ->
+        begin match Misc.Int_literal_converter.int s with
+        | n -> Result.Ok n
+        | exception (Failure _) -> Result.Error ()
+        end
+    | _ -> Result.Error ()
+
+let get_construct_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc =
+          Pexp_construct ({ txt = Longident.Lident constr }, None) } ->
+        Result.Ok constr
+    | _ -> Result.Error ()
+
+let get_bool_from_exp exp =
+  Result.bind (get_construct_from_exp exp)
+    (function
+      | "true" -> Result.Ok true
+      | "false" -> Result.Ok false
+      | _ -> Result.Error ())
+
+let parse_id_payload txt loc ~default ~empty cases payload =
+  let[@local] warn () =
+    let ( %> ) f g x = g (f x) in
+    let msg =
+      cases
+      |> List.map (fst %> Printf.sprintf "'%s'")
+      |> String.concat ", "
+      |> Printf.sprintf "It must be either %s or empty"
+    in
+    Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+    default
+  in
+  match get_optional_payload get_id_from_exp payload with
+  | Error () -> warn ()
+  | Ok None -> empty
+  | Ok (Some id) ->
+      match List.assoc_opt id cases with
+      | Some r -> r
+      | None -> warn ()
+
+let parse_inline_attribute attr =
+=======
+let get_optional_payload get_from_exp =
+  let open Parsetree in
+  function
+  | PStr [] -> Result.Ok None
+  | other -> Result.map Option.some (get_payload get_from_exp other)
+
+let get_id_from_exp =
+  let open Parsetree in
+  function
+  | { pexp_desc = Pexp_ident { txt = Longident.Lident id } } -> Result.Ok id
+  | _ -> Result.Error ()
+
+let get_int_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc = Pexp_constant
+            {pconst_desc = Pconst_integer(s, None); _} } ->
+        begin match Misc.Int_literal_converter.int s with
+        | n -> Result.Ok n
+        | exception (Failure _) -> Result.Error ()
+        end
+    | _ -> Result.Error ()
+
+let get_construct_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc =
+          Pexp_construct ({ txt = Longident.Lident constr }, None) } ->
+        Result.Ok constr
+    | _ -> Result.Error ()
+
+let get_bool_from_exp exp =
+  Result.bind (get_construct_from_exp exp)
+    (function
+      | "true" -> Result.Ok true
+      | "false" -> Result.Ok false
+      | _ -> Result.Error ())
+
+let parse_id_payload txt loc ~default ~empty cases payload =
+  let[@local] warn () =
+    let ( %> ) f g x = g (f x) in
+    let msg =
+      cases
+      |> List.map (fst %> Printf.sprintf "'%s'")
+      |> String.concat ", "
+      |> Printf.sprintf "It must be either %s or empty"
+    in
+    Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+    default
+  in
+  match get_optional_payload get_id_from_exp payload with
+  | Error () -> warn ()
+  | Ok None -> empty
+  | Ok (Some id) ->
+      match List.assoc_opt id cases with
+      | Some r -> r
+      | None -> warn ()
+
+let parse_inline_attribute attr =
+>>>>>>> ocaml/trunk
   match attr with
   | None -> Default_inline
-  | Some {Parsetree.attr_name = {txt;loc} as id; attr_payload = payload} ->
-    if is_unrolled id then begin
+  | Some ({Parsetree.attr_name = {txt;loc}; attr_payload = payload} as attr) ->
+    if attr_equals_builtin attr "unrolled" then begin
       (* the 'unrolled' attributes must be used as [@unrolled n]. *)
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
@@ -253,6 +480,7 @@ let lfunction_with_attr ~attr
   lfunction ~kind ~params ~return ~body ~attr ~loc ~mode ~ret_mode ~region
 
 let add_inline_attribute expr loc attributes =
+<<<<<<< HEAD
   match expr with
   | Lfunction({ attr = { stub = false } as attr } as funct) ->
     begin match get_inline_attribute attributes with
@@ -271,6 +499,44 @@ let add_inline_attribute expr loc attributes =
         lfunction_with_attr ~attr funct
     end
   | _ -> expr
+||||||| 121bedcfd2
+  match expr, get_inline_attribute attributes with
+  | expr, Default_inline -> expr
+  | Lfunction({ attr = { stub = false } as attr } as funct), inline ->
+      begin match attr.inline with
+      | Default_inline -> ()
+      | Always_inline | Hint_inline | Never_inline | Unroll _ ->
+          Location.prerr_warning loc
+            (Warnings.Duplicated_attribute "inline")
+      end;
+      let attr = { attr with inline } in
+      check_local_inline loc attr;
+      check_poll_inline loc attr;
+      lfunction_with_attr ~attr funct
+  | expr, (Always_inline | Hint_inline | Never_inline | Unroll _) ->
+      Location.prerr_warning loc
+        (Warnings.Misplaced_attribute "inline");
+      expr
+=======
+  match expr with
+  | Lfunction({ attr = { stub = false } as attr } as funct) ->
+    begin match get_inline_attribute attributes with
+      | Default_inline -> expr
+      | (Always_inline | Hint_inline | Never_inline | Unroll _)
+          as inline ->
+        begin match attr.inline with
+          | Default_inline -> ()
+          | Always_inline | Hint_inline | Never_inline | Unroll _ ->
+            Location.prerr_warning loc
+              (Warnings.Duplicated_attribute "inline")
+        end;
+        let attr = { attr with inline } in
+        check_local_inline loc attr;
+        check_poll_inline loc attr;
+      lfunction_with_attr ~attr funct
+    end
+  | _ -> expr
+>>>>>>> ocaml/trunk
 
 let add_specialise_attribute expr loc attributes =
   match expr with
@@ -305,6 +571,7 @@ let add_local_attribute expr loc attributes =
       check_local_inline loc attr;
       check_poll_local loc attr;
       lfunction_with_attr ~attr funct
+<<<<<<< HEAD
     end
   | _ -> expr
 
@@ -324,6 +591,15 @@ let add_loop_attribute expr loc attributes =
       lfunction_with_attr ~attr funct
     end
   | _ -> expr
+||||||| 121bedcfd2
+  | expr, (Always_local | Never_local) ->
+      Location.prerr_warning loc
+        (Warnings.Misplaced_attribute "local");
+      expr
+=======
+    end
+  | _ -> expr
+>>>>>>> ocaml/trunk
 
 let add_tmc_attribute expr loc attributes =
   match expr with
@@ -360,6 +636,7 @@ let add_poll_attribute expr loc attributes =
     end
   | expr -> expr
 
+<<<<<<< HEAD
 let add_opaque_attribute expr loc attributes =
   match expr with
   | Lfunction({ attr } as funct) ->
@@ -376,7 +653,26 @@ let add_opaque_attribute expr loc attributes =
         lfunction_with_attr ~attr funct
       end
   | _ -> expr
+||||||| 121bedcfd2
+(* Get the [@inlined] attribute payload (or default if not present).
+   It also returns the expression without this attribute. This is
+   used to ensure that this attribute is not misplaced: If it
+   appears on any expression, it is an error, otherwise it would
+   have been removed by this function *)
+let get_and_remove_inlined_attribute e =
+  let attr, exp_attributes =
+    find_attribute is_inlined_attribute e.exp_attributes
+  in
+  let inlined = parse_inline_attribute attr in
+  inlined, { e with exp_attributes }
+=======
+(* Get the [@inlined] attribute payload (or default if not present). *)
+let get_inlined_attribute e =
+  let attr = find_attribute is_inlined_attribute e.exp_attributes in
+  parse_inline_attribute attr
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let add_unbox_return_attribute expr loc attributes =
   match expr with
   | Lfunction funct ->
@@ -403,7 +699,23 @@ let get_inlined_attribute_on_module e =
     let attr = find_attribute is_inlined_attribute mod_expr.mod_attributes in
     let attr = parse_inlined_attribute attr in
     let attr =
+||||||| 121bedcfd2
+let get_and_remove_inlined_attribute_on_module e =
+  let rec get_and_remove mod_expr =
+    let attr, mod_attributes =
+      find_attribute is_inlined_attribute mod_expr.mod_attributes
+    in
+    let attr = parse_inline_attribute attr in
+    let attr, mod_desc =
+=======
+let get_inlined_attribute_on_module e =
+  let rec get mod_expr =
+    let attr = find_attribute is_inlined_attribute mod_expr.mod_attributes in
+    let attr = parse_inline_attribute attr in
+    let attr =
+>>>>>>> ocaml/trunk
       match mod_expr.Typedtree.mod_desc with
+<<<<<<< HEAD
       | Tmod_constraint (me, _, _, _) ->
         let inner_attr = get me in
         begin match attr with
@@ -411,6 +723,25 @@ let get_inlined_attribute_on_module e =
         | Default_inlined -> inner_attr
         end
       | _ -> attr
+||||||| 121bedcfd2
+      | Tmod_constraint (me, mt, mtc, mc) ->
+        let inner_attr, me = get_and_remove me in
+        let attr =
+          match attr with
+          | Always_inline | Hint_inline | Never_inline | Unroll _ -> attr
+          | Default_inline -> inner_attr
+        in
+        attr, Tmod_constraint (me, mt, mtc, mc)
+      | md -> attr, md
+=======
+      | Tmod_constraint (me, _, _, _) ->
+        let inner_attr = get me in
+        begin match attr with
+        | Always_inline | Hint_inline | Never_inline | Unroll _ -> attr
+        | Default_inline -> inner_attr
+        end
+      | _ -> attr
+>>>>>>> ocaml/trunk
     in
     attr
   in
@@ -421,6 +752,7 @@ let get_specialised_attribute e =
   parse_specialise_attribute attr
 
 let get_tailcall_attribute e =
+<<<<<<< HEAD
   let attr = find_attribute is_tailcall_attribute e.exp_attributes in
   match attr with
   | None -> Default_tailcall
@@ -432,6 +764,78 @@ let get_tailcall_attribute e =
         let msg = "Only an optional boolean literal is supported." in
         Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
         Default_tailcall
+||||||| 121bedcfd2
+  let is_tailcall_attribute = function
+    | {Parsetree.attr_name = {txt=("tailcall"|"ocaml.tailcall")}; _} -> true
+    | _ -> false
+  in
+  let tailcalls, other_attributes =
+    List.partition is_tailcall_attribute e.exp_attributes
+  in
+  let tailcall_attribute = match tailcalls with
+    | [] -> Default_tailcall
+    | {Parsetree.attr_name = {txt; loc}; attr_payload = payload} :: r ->
+        begin match r with
+        | [] -> ()
+        | {Parsetree.attr_name = {txt;loc}; _} :: _ ->
+            Location.prerr_warning loc (Warnings.Duplicated_attribute txt)
+        end;
+        match get_optional_payload get_bool_from_exp payload with
+        | Ok (None | Some true) -> Tailcall_expectation true
+        | Ok (Some false) -> Tailcall_expectation false
+        | Error () ->
+            let msg = "Only an optional boolean literal is supported." in
+            Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+            Default_tailcall
+      in
+      tailcall_attribute, { e with exp_attributes = other_attributes }
+
+let check_attribute e {Parsetree.attr_name = { txt; loc }; _} =
+  match txt with
+  | "inline" | "ocaml.inline"
+  | "specialise" | "ocaml.specialise"
+  | "poll" -> begin
+      match e.exp_desc with
+      | Texp_function _ -> ()
+      | _ ->
+          Location.prerr_warning loc
+            (Warnings.Misplaced_attribute txt)
+    end
+  | "inlined" | "ocaml.inlined"
+  | "specialised" | "ocaml.specialised"
+  | "tailcall" | "ocaml.tailcall" ->
+      (* Removed by the Texp_apply cases *)
+      Location.prerr_warning loc
+        (Warnings.Misplaced_attribute txt)
+  | _ -> ()
+
+let check_attribute_on_module e {Parsetree.attr_name = { txt; loc }; _} =
+  match txt with
+  | "inline" | "ocaml.inline" ->  begin
+      match e.mod_desc with
+      | Tmod_functor _ -> ()
+      | _ ->
+          Location.prerr_warning loc
+            (Warnings.Misplaced_attribute txt)
+    end
+  | "inlined" | "ocaml.inlined" ->
+      (* Removed by the Texp_apply cases *)
+      Location.prerr_warning loc
+        (Warnings.Misplaced_attribute txt)
+  | _ -> ()
+=======
+  let attr = find_attribute is_tailcall_attribute e.exp_attributes in
+  match attr with
+  | None -> Default_tailcall
+  | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
+    match get_optional_payload get_bool_from_exp payload with
+    | Ok (None | Some true) -> Tailcall_expectation true
+    | Ok (Some false) -> Tailcall_expectation false
+    | Error () ->
+        let msg = "Only an optional boolean literal is supported." in
+        Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+        Default_tailcall
+>>>>>>> ocaml/trunk
 
 let add_function_attributes lam loc attr =
   let lam =

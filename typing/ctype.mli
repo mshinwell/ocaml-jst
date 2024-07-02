@@ -34,6 +34,15 @@ exception Incompatible
 
 (* All the following wrapper functions revert to the original level,
    even in case of exception. *)
+val with_local_level_generalize:
+    ?before_generalize:('a -> unit) -> (unit -> 'a) -> 'a
+val with_local_level_generalize_if:
+        bool -> ?before_generalize:('a -> unit) -> (unit -> 'a) -> 'a
+val with_local_level_generalize_structure: (unit -> 'a) -> 'a
+val with_local_level_generalize_structure_if: bool -> (unit -> 'a) -> 'a
+val with_local_level_generalize_structure_if_principal: (unit -> 'a) -> 'a
+val with_local_level_generalize_for_class: (unit -> 'a) -> 'a
+
 val with_local_level: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* [with_local_level (fun () -> cmd) ~post] evaluates [cmd] at a
            raised level.
@@ -133,8 +142,6 @@ val merge_row_fields:
 val filter_row_fields:
         bool -> (label * row_field) list -> (label * row_field) list
 
-val generalize: type_expr -> unit
-        (* Generalize in-place the given type *)
 val lower_contravariant: Env.t -> type_expr -> unit
         (* Lower level of type variables inside contravariant branches;
            to be used before generalize for expansive expressions *)
@@ -142,23 +149,16 @@ val lower_variables_only: Env.t -> int -> type_expr -> unit
         (* Lower all variables to the given level *)
 val enforce_current_level: Env.t -> type_expr -> unit
         (* Lower whole type to !current_level *)
-val generalize_structure: type_expr -> unit
-        (* Generalize the structure of a type, lowering variables
-           to !current_level *)
-val generalize_class_type : class_type -> unit
-        (* Generalize the components of a class type *)
-val generalize_class_type_structure : class_type -> unit
-       (* Generalize the structure of the components of a class type *)
-val generalize_class_signature_spine : Env.t -> class_signature -> unit
+val generalize_class_signature_spine: class_signature -> unit
        (* Special function to generalize methods during inference *)
-val correct_levels: type_expr -> type_expr
-        (* Returns a copy with decreasing levels *)
-val limited_generalize: type_expr -> type_expr -> unit
+val limited_generalize: type_expr -> inside:type_expr -> unit
         (* Only generalize some part of the type
            Make the remaining of the type non-generalizable *)
-val limited_generalize_class_type: type_expr -> class_type -> unit
+val limited_generalize_class_type: type_expr -> inside:class_type -> unit
         (* Same, but for class types *)
 
+val duplicate_type: type_expr -> type_expr
+        (* Returns a copy with non-variable nodes at generic level *)
 val fully_generic: type_expr -> bool
 
 val check_scope_escape : Env.t -> int -> type_expr -> unit
@@ -176,13 +176,36 @@ val generic_instance: type_expr -> type_expr
 val instance_list: type_expr list -> type_expr list
         (* Take an instance of a list of type schemes *)
 val new_local_type:
+<<<<<<< HEAD
         ?loc:Location.t -> ?manifest_and_scope:(type_expr * int) ->
         Jkind.t -> jkind_annot:Jkind.annotation option -> type_declaration
 val existential_name: constructor_description -> type_expr -> string
+||||||| 121bedcfd2
+        ?loc:Location.t ->
+        ?manifest_and_scope:(type_expr * int) -> unit -> type_declaration
+val existential_name: constructor_description -> type_expr -> string
+=======
+        ?loc:Location.t ->
+        ?manifest_and_scope:(type_expr * int) ->
+        type_origin -> type_declaration
+
+module Pattern_env : sig
+  type t = private
+    { mutable env : Env.t;
+      equations_scope : int;
+      (* scope for local type declarations *)
+      allow_recursive_equations : bool;
+      (* true iff checking counter examples *)
+    }
+  val make: Env.t -> equations_scope:int -> allow_recursive_equations:bool -> t
+  val copy: ?equations_scope:int -> t -> t
+  val set_env: t -> Env.t -> unit
+end
+>>>>>>> ocaml/trunk
 
 type existential_treatment =
   | Keep_existentials_flexible
-  | Make_existentials_abstract of { env: Env.t ref; scope: int }
+  | Make_existentials_abstract of Pattern_env.t
 
 val instance_constructor: existential_treatment ->
         constructor_description ->
@@ -198,12 +221,13 @@ val instance_class:
         type_expr list -> class_type -> type_expr list * class_type
 
 val instance_poly:
-        ?keep_names:bool ->
-        bool -> type_expr list -> type_expr -> type_expr list * type_expr
+        ?keep_names:bool -> fixed:bool ->
+        type_expr list -> type_expr -> type_expr list * type_expr
         (* Take an instance of a type scheme containing free univars *)
 val polyfy: Env.t -> type_expr -> type_expr list -> type_expr * bool
 val instance_label:
-        bool -> label_description -> type_expr list * type_expr * type_expr
+        fixed:bool ->
+        label_description -> type_expr list * type_expr * type_expr
         (* Same, for a label *)
 val prim_mode :
         (Mode.allowed * 'r) Mode.Locality.t option -> (Primitive.mode * Primitive.native_repr)
@@ -264,11 +288,12 @@ type typedecl_extraction_result =
 val extract_concrete_typedecl:
         Env.t -> type_expr -> typedecl_extraction_result
 
+val get_new_abstract_name : Env.t -> string -> string
+
 val unify: Env.t -> type_expr -> type_expr -> unit
         (* Unify the two types given. Raise [Unify] if not possible. *)
 val unify_gadt:
-        equations_level:int -> allow_recursive_equations:bool ->
-        Env.t ref -> type_expr -> type_expr -> Btype.TypePairs.t
+        Pattern_env.t -> type_expr -> type_expr -> Btype.TypePairs.t
         (* Unify the two types given and update the environment with the
            local constraints. Raise [Unify] if not possible.
            Returns the pairs of types that have been equated.  *)
@@ -361,9 +386,9 @@ exception Filter_method_failed of filter_method_failure
 type class_match_failure =
     CM_Virtual_class
   | CM_Parameter_arity_mismatch of int * int
-  | CM_Type_parameter_mismatch of Env.t * Errortrace.equality_error
+  | CM_Type_parameter_mismatch of int * Env.t * Errortrace.equality_error
   | CM_Class_type_mismatch of Env.t * class_type * class_type
-  | CM_Parameter_mismatch of Env.t * Errortrace.moregen_error
+  | CM_Parameter_mismatch of int * Env.t * Errortrace.moregen_error
   | CM_Val_type_mismatch of string * Env.t * Errortrace.comparison_error
   | CM_Meth_type_mismatch of string * Env.t * Errortrace.comparison_error
   | CM_Non_mutable_value of string
@@ -513,7 +538,8 @@ val wrap_trace_gadt_instances: Env.t -> ('a -> 'b) -> 'a -> 'b
 (* Stubs *)
 val package_subtype :
     (Env.t -> Path.t -> (Longident.t * type_expr) list ->
-      Path.t -> (Longident.t * type_expr) list -> bool) ref
+      Path.t -> (Longident.t * type_expr) list ->
+     (unit,Errortrace.first_class_module) Result.t) ref
 
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit

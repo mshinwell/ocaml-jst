@@ -29,6 +29,20 @@
 
 #include "camlatomic.h"
 
+/* Detection of available C attributes and compiler extensions */
+
+#ifndef __has_c_attribute
+#define __has_c_attribute(x) 0
+#endif
+
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
+
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
 /* Deprecation warnings */
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -42,8 +56,9 @@
   #define CAMLdeprecated_typedef(name, type) typedef type name
 #endif
 
-#if defined(__GNUC__) && __STDC_VERSION__ >= 199901L \
- || defined(_MSC_VER) && _MSC_VER >= 1925
+#if defined(__GNUC__)                                           \
+    && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L \
+    || defined(_MSC_VER) && _MSC_VER >= 1925
 
 #define CAML_STRINGIFY(x) #x
 #ifdef _MSC_VER
@@ -75,28 +90,32 @@ typedef size_t asize_t;
 CAMLdeprecated_typedef(addr, char *);
 #endif /* CAML_INTERNALS */
 
-/* Noreturn is preserved for compatibility reasons.
-   Instead of the legacy GCC/Clang-only
-     foo Noreturn;
-   you should prefer
-     CAMLnoreturn_start foo CAMLnoreturn_end;
-   which supports both GCC/Clang and MSVC.
+/* Noreturn, CAMLnoreturn_start and CAMLnoreturn_end are preserved
+   for compatibility reasons.  Instead, we recommend using the CAMLnoret
+   macro, to be added as a modifier at the beginning of the
+   function definition or declaration.  It must occur first, before
+   "static", "extern", "CAMLexport", "CAMLextern".
 
    Note: CAMLnoreturn is a different macro defined in memory.h,
-   to be used in function bodies rather than as a prototype attribute.
+   to be used in function bodies rather than as a function attribute.
 */
-#ifdef __GNUC__
-  /* Works only in GCC 2.5 and later */
-  #define CAMLnoreturn_start
-  #define CAMLnoreturn_end __attribute__ ((noreturn))
-  #define Noreturn __attribute__ ((noreturn))
-#elif defined(_MSC_VER)
-  #define CAMLnoreturn_start __declspec(noreturn)
-  #define CAMLnoreturn_end
-  #define Noreturn
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202300L    \
+    || defined(__cplusplus) && __cplusplus >= 201103L
+  #define CAMLnoret [[noreturn]]
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+  #define CAMLnoret _Noreturn
+#elif defined(__GNUC__)
+  #define CAMLnoret  __attribute__ ((noreturn))
 #else
-  #define CAMLnoreturn_start
-  #define CAMLnoreturn_end
+  #define CAMLnoret
+#endif
+
+#define CAMLnoreturn_start CAMLnoret
+#define CAMLnoreturn_end
+
+#ifdef __GNUC__
+  #define Noreturn __attribute__ ((noreturn))
+#else
   #define Noreturn
 #endif
 
@@ -149,12 +168,25 @@ CAMLdeprecated_typedef(addr, char *);
 #error "How do I align values on this platform?"
 #endif
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L || \
+    defined(__cplusplus)
+#define CAMLthread_local thread_local
+#else
+#define CAMLthread_local _Thread_local
+#endif
+
 /* Prefetching */
 
 #ifdef CAML_INTERNALS
-#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#if (__has_builtin(__builtin_prefetch) || defined(__GNUC__)) && \
+    (defined(__i386__) || defined(__x86_64__) || \
+     defined(_M_IX86) || defined(_M_AMD64))
 #define caml_prefetch(p) __builtin_prefetch((p), 1, 3)
 /* 1 = intent to write; 3 = all cache levels */
+#elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))
+#include <intrin.h>
+#define caml_prefetch(p) _mm_prefetch((char const *) p, _MM_HINT_T0)
+/* PreFetchCacheLine(PF_TEMPORAL_LEVEL_1, p) */
 #else
 #define caml_prefetch(p)
 #endif
@@ -181,6 +213,17 @@ CAMLdeprecated_typedef(addr, char *);
   #define CAMLunused_end
   #define CAMLunused
 #endif
+
+#ifdef CAML_INTERNALS
+#if (defined(__cplusplus) && __cplusplus >= 201703L) || \
+    __has_c_attribute(fallthrough)
+  #define fallthrough [[fallthrough]]
+#elif __has_attribute(fallthrough)
+  #define fallthrough __attribute__ ((fallthrough))
+#else
+  #define fallthrough ((void) 0)
+#endif
+#endif /* CAML_INTERNALS */
 
 /* GC timing hooks. These can be assigned by the user. These hooks
    must not allocate, change any heap value, nor call OCaml code. They
@@ -213,14 +256,6 @@ Caml_inline void call_timing_hook(_Atomic caml_timing_hook * a)
 
 #endif /* CAML_INTERNALS */
 
-#define CAML_STATIC_ASSERT_3(b, l) \
-  CAMLunused_start \
-    CAMLextern char static_assertion_failure_line_##l[(b) ? 1 : -1] \
-  CAMLunused_end
-
-#define CAML_STATIC_ASSERT_2(b, l) CAML_STATIC_ASSERT_3(b, l)
-#define CAML_STATIC_ASSERT(b) CAML_STATIC_ASSERT_2(b, __LINE__)
-
 /* Windows Unicode support (rest below - char_os is needed earlier) */
 
 #ifdef _WIN32
@@ -246,9 +281,7 @@ typedef char char_os;
 
 #define CAMLassert(x) \
   (CAMLlikely(x) ? (void) 0 : caml_failed_assert ( #x , __OSFILE__, __LINE__))
-CAMLnoreturn_start
-CAMLextern void caml_failed_assert (char *, char_os *, int)
-CAMLnoreturn_end;
+CAMLnoret CAMLextern void caml_failed_assert (char *, char_os *, int);
 #else
 #define CAMLassert(x) ((void) 0)
 #endif
@@ -299,11 +332,11 @@ typedef void (*fatal_error_hook) (char *msg, va_list args);
 extern _Atomic fatal_error_hook caml_fatal_error_hook;
 #endif
 
-CAMLnoreturn_start
-CAMLextern void caml_fatal_error (char *, ...)
+CAMLnoret CAMLextern void caml_fatal_error (char *, ...)
 #ifdef __GNUC__
   __attribute__ ((format (printf, 1, 2)))
 #endif
+<<<<<<< HEAD
 CAMLnoreturn_end;
 
 CAMLnoreturn_start
@@ -317,6 +350,19 @@ CAMLnoreturn_end;
 #else
 #define Caml_has_builtin(x) 0
 #endif
+||||||| 121bedcfd2
+CAMLnoreturn_end;
+
+/* Detection of available C built-in functions, the Clang way. */
+
+#ifdef __has_builtin
+#define Caml_has_builtin(x) __has_builtin(x)
+#else
+#define Caml_has_builtin(x) 0
+#endif
+=======
+;
+>>>>>>> ocaml/trunk
 
 /* Integer arithmetic with overflow detection.
    The functions return 0 if no overflow, 1 if overflow.
@@ -327,7 +373,7 @@ CAMLnoreturn_end;
 
 Caml_inline int caml_uadd_overflow(uintnat a, uintnat b, uintnat * res)
 {
-#if __GNUC__ >= 5 || Caml_has_builtin(__builtin_add_overflow)
+#if __has_builtin(__builtin_add_overflow) || defined(__GNUC__) && __GNUC__ >= 5
   return __builtin_add_overflow(a, b, res);
 #else
   uintnat c = a + b;
@@ -338,7 +384,7 @@ Caml_inline int caml_uadd_overflow(uintnat a, uintnat b, uintnat * res)
 
 Caml_inline int caml_usub_overflow(uintnat a, uintnat b, uintnat * res)
 {
-#if __GNUC__ >= 5 || Caml_has_builtin(__builtin_sub_overflow)
+#if __has_builtin(__builtin_sub_overflow) || defined(__GNUC__) && __GNUC__ >= 5
   return __builtin_sub_overflow(a, b, res);
 #else
   uintnat c = a - b;
@@ -347,13 +393,24 @@ Caml_inline int caml_usub_overflow(uintnat a, uintnat b, uintnat * res)
 #endif
 }
 
-#if __GNUC__ >= 5 || Caml_has_builtin(__builtin_mul_overflow)
+#if __has_builtin(__builtin_mul_overflow) || defined(__GNUC__) && __GNUC__ >= 5
 Caml_inline int caml_umul_overflow(uintnat a, uintnat b, uintnat * res)
 {
   return __builtin_mul_overflow(a, b, res);
 }
 #else
 extern int caml_umul_overflow(uintnat a, uintnat b, uintnat * res);
+#endif
+
+#ifdef CAML_INTERNALS
+
+/* Rounding */
+
+Caml_inline uintnat caml_round_up(uintnat value, uintnat align) {
+  CAMLassert(Is_power_of_2(align));
+  return (value + align - 1) & ~(align - 1);
+}
+
 #endif
 
 /* From floats.c */
@@ -461,6 +518,7 @@ struct ext_table {
 
 extern void caml_ext_table_init(struct ext_table * tbl, int init_capa);
 extern int caml_ext_table_add(struct ext_table * tbl, void * data);
+extern int caml_ext_table_add_noexc(struct ext_table * tbl, void * data);
 extern void caml_ext_table_remove(struct ext_table * tbl, void * data);
 extern void caml_ext_table_free(struct ext_table * tbl, int free_entries);
 extern void caml_ext_table_clear(struct ext_table * tbl, int free_entries);
@@ -506,13 +564,13 @@ int caml_runtime_warnings_active(void);
 
 #ifdef DEBUG
 #ifdef ARCH_SIXTYFOUR
-#define Debug_tag(x) (0xD700D7D7D700D6D7ull \
+#define Debug_tag(x) (0xD700D7D7D700D6D8ull \
                       | ((uintnat) (x) << 16) \
                       | ((uintnat) (x) << 48))
-#define Is_debug_tag(x) (((x) & 0xff00ffffff00ffffull) == 0xD700D7D7D700D6D7ull)
+#define Is_debug_tag(x) (((x) & 0xff00ffffff00ffffull) == 0xD700D7D7D700D6D8ull)
 #else
-#define Debug_tag(x) (0xD700D6D7ul | ((uintnat) (x) << 16))
-#define Is_debug_tag(x) (((x) & 0xff00fffful) == 0xD700D6D7ul)
+#define Debug_tag(x) (0xD700D6D8ul | ((uintnat) (x) << 16))
+#define Is_debug_tag(x) (((x) & 0xff00fffful) == 0xD700D6D8ul)
 #endif /* ARCH_SIXTYFOUR */
 
 /*
@@ -564,20 +622,26 @@ CAMLextern int caml_snwprintf(wchar_t * buf,
 #define snprintf_os snprintf
 #endif
 
-/* Macro used to deactivate thread and address sanitizers on some
-   functions. */
-#define CAMLno_tsan
+/* Macro used to deactivate address sanitizer on some functions. */
 #define CAMLno_asan
+/* __has_feature is Clang-specific, but GCC defines __SANITIZE_ADDRESS__ and
+ * __SANITIZE_THREAD__. */
 #if defined(__has_feature)
-#  if __has_feature(thread_sanitizer)
-#    undef CAMLno_tsan
-#    define CAMLno_tsan __attribute__((no_sanitize("thread")))
-#  endif
 #  if __has_feature(address_sanitizer)
 #    undef CAMLno_asan
 #    define CAMLno_asan __attribute__((no_sanitize("address")))
 #  endif
+#else
+#  if defined(__SANITIZE_ADDRESS__)
+#    undef CAMLno_asan
+#    define CAMLno_asan __attribute__((no_sanitize_address))
+#  endif
 #endif
+
+/* Generate a named symbol that is unique within the current macro expansion */
+#define CAML_GENSYM_3(name, l) caml__##name##_##l
+#define CAML_GENSYM_2(name, l) CAML_GENSYM_3(name, l)
+#define CAML_GENSYM(name) CAML_GENSYM_2(name, __LINE__)
 
 #endif /* CAML_INTERNALS */
 

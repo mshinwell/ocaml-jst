@@ -16,8 +16,6 @@
 (* Typing of type definitions and primitive definitions *)
 
 open Types
-open Format
-
 val transl_type_decl:
     Env.t -> Asttypes.rec_flag -> Parsetree.type_declaration list ->
     Typedtree.type_declaration list * Env.t * Shape.t list
@@ -46,6 +44,7 @@ val transl_with_constraint:
     outer_env:Env.t -> Parsetree.type_declaration ->
     Typedtree.type_declaration
 
+<<<<<<< HEAD
 val transl_package_constraint:
   loc:Location.t -> type_expr -> Types.type_declaration
 
@@ -58,6 +57,14 @@ val abstract_type_decl:
   params:Jkind.t list ->
   type_declaration
 
+||||||| 121bedcfd2
+val abstract_type_decl: injective:bool -> int -> type_declaration
+=======
+val transl_package_constraint:
+  loc:Location.t -> Env.t -> type_expr -> Types.type_declaration
+
+val abstract_type_decl: injective:bool -> int -> type_declaration
+>>>>>>> ocaml/trunk
 val approx_type_decl:
     Parsetree.type_declaration list -> (Ident.t * type_declaration) list
 val check_recmod_typedecl:
@@ -180,4 +187,4 @@ type error =
 
 exception Error of Location.t * error
 
-val report_error: formatter -> error -> unit
+val report_error: error Format_doc.printer

@@ -281,6 +281,7 @@ let print_bigarray name unsafe kind ppf layout =
     (if unsafe then "unsafe_"^ name else name)
     (match kind with
      | Pbigarray_unknown -> "generic"
+     | Pbigarray_float16 -> "float16"
      | Pbigarray_float32 -> "float32"
      | Pbigarray_float64 -> "float64"
      | Pbigarray_sint8 -> "sint8"
@@ -303,8 +304,14 @@ let record_rep ppf r = match r with
   | Record_boxed _ -> fprintf ppf "boxed"
   | Record_inlined _ -> fprintf ppf "inlined"
   | Record_float -> fprintf ppf "float"
+<<<<<<< HEAD
   | Record_ufloat -> fprintf ppf "ufloat"
   | Record_mixed _ -> fprintf ppf "mixed"
+||||||| 121bedcfd2
+  | Record_extension path -> fprintf ppf "ext(%a)" Printtyp.path path
+=======
+  | Record_extension path -> fprintf ppf "ext(%a)" Printtyp.Compat.path path
+>>>>>>> ocaml/trunk
 
 let block_shape ppf shape = match shape with
   | None | Some [] -> ()
@@ -764,6 +771,7 @@ let primitive ppf = function
   | Patomic_fetch_add -> fprintf ppf "atomic_fetch_add"
   | Popaque _ -> fprintf ppf "opaque"
   | Pdls_get -> fprintf ppf "dls_get"
+<<<<<<< HEAD
   | Pprobe_is_enabled {name} -> fprintf ppf "probe_is_enabled[%s]" name
   | Pobj_dup -> fprintf ppf "obj_dup"
   | Pobj_magic _ -> fprintf ppf "obj_magic"
@@ -777,6 +785,10 @@ let primitive ppf = function
   | Parray_to_iarray -> fprintf ppf "array_to_iarray"
   | Parray_of_iarray -> fprintf ppf "array_of_iarray"
   | Pget_header m -> fprintf ppf "get_header%s" (alloc_kind m)
+||||||| 121bedcfd2
+=======
+  | Ppoll -> fprintf ppf "poll"
+>>>>>>> ocaml/trunk
 
 let name_of_primitive = function
   | Pbytes_of_string -> "Pbytes_of_string"
@@ -925,6 +937,7 @@ let name_of_primitive = function
   | Pperform -> "Pperform"
   | Preperform -> "Preperform"
   | Pdls_get -> "Pdls_get"
+<<<<<<< HEAD
   | Pprobe_is_enabled _ -> "Pprobe_is_enabled"
   | Pobj_dup -> "Pobj_dup"
   | Pobj_magic _ -> "Pobj_magic"
@@ -946,6 +959,10 @@ let zero_alloc_attribute ppf check =
   | Check {strict; loc = _; } ->
     fprintf ppf "assert_zero_alloc%s@ "
       (if strict then "_strict" else "")
+||||||| 121bedcfd2
+=======
+  | Ppoll -> "Ppoll"
+>>>>>>> ocaml/trunk
 
 let function_attribute ppf t =
   if t.is_a_functor then
@@ -1030,10 +1047,38 @@ let rec lam ppf = function
         apply_tailcall_attribute ap.ap_tailcall
         apply_inlined_attribute ap.ap_inlined
         apply_specialised_attribute ap.ap_specialised
+<<<<<<< HEAD
         apply_probe ap.ap_probe
   | Lfunction lfun ->
       lfunction ppf lfun
   | Llet _ | Lmutlet _ as expr ->
+||||||| 121bedcfd2
+  | Lfunction{kind; params; return; body; attr} ->
+      let pr_params ppf params =
+        match kind with
+        | Curried ->
+            List.iter (fun (param, k) ->
+                fprintf ppf "@ %a%a" Ident.print param value_kind k) params
+        | Tupled ->
+            fprintf ppf " (";
+            let first = ref true in
+            List.iter
+              (fun (param, k) ->
+                if !first then first := false else fprintf ppf ",@ ";
+                Ident.print ppf param;
+                value_kind ppf k)
+              params;
+            fprintf ppf ")" in
+      fprintf ppf "@[<2>(function%a@ %a%a%a)@]" pr_params params
+        function_attribute attr return_kind return lam body
+  | Llet(_, k, id, arg, body)
+  | Lmutlet(k, id, arg, body) as l ->
+=======
+  | Lfunction lfun ->
+      lfunction ppf lfun
+  | Llet(_, k, id, arg, body)
+  | Lmutlet(k, id, arg, body) as l ->
+>>>>>>> ocaml/trunk
       let let_kind = begin function
         | Llet(str,_,_,_,_) ->
            begin match str with
@@ -1189,6 +1234,7 @@ and sequence ppf = function
   | l ->
       lam ppf l
 
+<<<<<<< HEAD
 and lfunction ppf {kind; params; return; body; attr; ret_mode; mode} =
   let pr_params ppf params =
     match kind with
@@ -1219,6 +1265,29 @@ and lfunction ppf {kind; params; return; body; attr; ret_mode; mode} =
     function_attribute attr return_kind (ret_mode, return) lam body
 
 
+||||||| 121bedcfd2
+=======
+and lfunction ppf {kind; params; return; body; attr} =
+  let pr_params ppf params =
+    match kind with
+    | Curried ->
+        List.iter (fun (param, k) ->
+            fprintf ppf "@ %a%a" Ident.print param value_kind k) params
+    | Tupled ->
+        fprintf ppf " (";
+        let first = ref true in
+        List.iter
+          (fun (param, k) ->
+             if !first then first := false else fprintf ppf ",@ ";
+             Ident.print ppf param;
+             value_kind ppf k)
+          params;
+            fprintf ppf ")" in
+  fprintf ppf "@[<2>(function%a@ %a%a%a)@]" pr_params params
+    function_attribute attr return_kind return lam body
+
+
+>>>>>>> ocaml/trunk
 let structured_constant = struct_const
 
 let lambda = lam

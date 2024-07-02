@@ -1,7 +1,13 @@
 (* TEST
+<<<<<<< HEAD
  include runtime_events;
  reason = "CR OCaml 5 domains";
  skip;
+||||||| 121bedcfd2
+include runtime_events
+=======
+ include runtime_events;
+>>>>>>> ocaml/trunk
 *)
 open Runtime_events
 

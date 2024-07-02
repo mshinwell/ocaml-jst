@@ -34,6 +34,15 @@ INSTALL_PROG ?= @INSTALL_PROGRAM@
 build_ocamldebug = @build_ocamldebug@
 
 build_ocamldoc = @build_ocamldoc@
+build_libraries_manpages = @build_libraries_manpages@
+
+OCAMLDOC_TARGET = @ocamldoc_target@
+OCAMLTEST_TARGET = @ocamltest_target@
+
+OCAMLDOC_OPT_TARGET = @ocamldoc_opt_target@
+OCAMLTEST_OPT_TARGET = @ocamltest_opt_target@
+
+build_ocamltest = @build_ocamltest@
 
 build_ocamltex = @build_ocamltex@
 
@@ -42,6 +51,10 @@ lib_runtime_events = @lib_runtime_events@
 lib_str = @lib_str@
 lib_systhreads = @lib_systhreads@
 lib_unix = @lib_unix@
+
+OPTIONAL_LIBRARIES = @optional_libraries@
+OPTIONAL_BYTECODE_TOOLS = @optional_bytecode_tools@
+OPTIONAL_NATIVE_TOOLS = @optional_native_tools@
 
 # Whether to install the native toplevel (ocamlnat)
 INSTALL_OCAMLNAT = @install_ocamlnat@
@@ -52,6 +65,7 @@ COMPUTE_DEPS=@compute_deps@
 
 # Build-system flags to use to compile C files
 OC_CFLAGS=@oc_cflags@
+<<<<<<< HEAD
 OC_CPPFLAGS=-I$(ROOTDIR)/$(RUNTIME_DIR) @oc_cppflags@
 
 # The following variable defines flags to be passed to the C preprocessor
@@ -67,16 +81,36 @@ OC_NATIVE_CPPFLAGS=-DNATIVE_CODE @native_cppflags@
 
 # Same as above, for CFLAGS
 OC_NATIVE_CFLAGS=@native_cflags@
+||||||| 121bedcfd2
+OC_CPPFLAGS=-I$(ROOTDIR)/runtime @oc_cppflags@
+
+# The following variable defines flags to be passed to the C preprocessor
+# when compiling C files to be linked with native code. This includes
+# the native runtime itself and can also include the stub code around
+# C libraries when it needs to be different from the one used to
+# link with bytecode.
+
+# These flags should be passed *in addition* to those in OC_CPPFLAGS, they
+# should not replace them.
+
+OC_NATIVE_CPPFLAGS=-DNATIVE_CODE @native_cppflags@
+
+# Same as above, for CFLAGS
+OC_NATIVE_CFLAGS=@native_cflags@
+=======
+# The submodules should be searched *before* any other external -I paths
+OC_INCLUDES = $(addprefix -I $(ROOTDIR)/, \
+  runtime @flexdll_source_dir@ @winpthreads_source_include_dir@)
+OC_CPPFLAGS = $(OC_INCLUDES) @oc_cppflags@
+>>>>>>> ocaml/trunk
 
 # Additional link-time options
 # To support dynamic loading of shared libraries (they need to look at
 # our own symbols):
 OC_LDFLAGS=@oc_ldflags@
 OC_DLL_LDFLAGS=@oc_dll_ldflags@
-OC_EXE_LDFLAGS=@oc_exe_ldflags@
 
-MKEXE_VIA_CC=\
-  $(CC) $(OC_EXE_LDFLAGS) $(OC_CFLAGS) $(CFLAGS) @mkexe_via_cc_ldflags@
+MKEXE_VIA_CC=$(CC) @mkexe_via_cc_ldflags@ @mkexe_via_cc_extra_cmd@
 
 # Which tool to use to display differences between files
 DIFF=@DIFF@
@@ -95,18 +129,20 @@ DOCUMENTATION_TOOL_CMD=@documentation_tool_cmd@
 
 # The location of the FlexDLL sources to use (usually provided as the flexdll
 # Git submodule)
-FLEXDLL_SOURCES=@flexdir@
+FLEXDLL_SOURCE_DIR=@flexdll_source_dir@
 BOOTSTRAPPING_FLEXDLL=@bootstrapping_flexdll@
+
+# The location of the Winpthreads sources to use (usually provided as the
+# winpthreads Git submodule)
+WINPTHREADS_SOURCE_DIR=@winpthreads_source_dir@
 
 ### Where to install documentation
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 datarootdir = @datarootdir@
 DOCDIR=@docdir@
 
-ocamltest_unix_impl = @ocamltest_unix_impl@
-ocamltest_unix_name = @ocamltest_unix_name@
-ocamltest_unix_path = @ocamltest_unix_path@
-ocamltest_unix_include = @ocamltest_unix_include@$(EMPTY)
+unix_directory = @unix_directory@
+unix_library = @unix_library@
 
 # Which make target to build, depending on whether the native compiler
 # has been enabled or not during the configuration stage
@@ -128,10 +164,9 @@ DEFAULT_BUILD_TARGET = @default_build_target@
 # (other backends may be added in the future).
 #
 # ZZZ is either COMPFLAGS (compile-time flags) or LINKFLAGS (link-time flags).
-# Countrary to the C convention wrt. CFLAGS and LDFLAGS, the flags in the
-# COMPFLAGS category are not passed at link time, so if a flag is needed
-# at both stages, like e.g. -g, it should be added to both
-# XXX_YYY_COMPFLAGS and XXX_YYY_LINKFLAGS.
+# The flags in the COMPFLAGS category are not passed at link time,
+# so if a flag is needed at both stages, like e.g. -g, it should be
+# added to both XXX_YYY_COMPFLAGS and XXX_YYY_LINKFLAGS.
 
 OC_COMMON_COMPFLAGS = -g -strict-sequence -principal -absname \
   -w +a-4-9-40-41-42-44-45-48 -warn-error +a -bin-annot \
@@ -152,3 +187,12 @@ runtime_ASM_OBJECTS = $(addprefix $(RUNTIME_DIR)/,@runtime_asm_objects@)
 
 # Platform-dependent module for ocamlyacc
 ocamlyacc_WSTR_MODULE = @ocamlyacc_wstr_module@
+
+# Architecture-specific modules, if any
+arch_specific_SOURCES = @arch_specific_SOURCES@
+
+# ThreadSanitizer support enabled
+TSAN=@tsan@
+# Contains TSan-specific runtime files, or nothing if TSan support is
+# disabled
+TSAN_NATIVE_RUNTIME_C_SOURCES = @tsan_native_runtime_c_sources@

@@ -1,7 +1,19 @@
+<<<<<<< HEAD
 (* TEST
  reason = "CR ocaml 5 domains: re-enable this test";
  skip;
 *)
+||||||| 121bedcfd2
+(* TEST *)
+=======
+(* TEST
+ {
+   bytecode;
+ }{
+   native;
+ }
+*)
+>>>>>>> ocaml/trunk
 
 (* Testing unsynchronized, parallel Weak usage *)
 

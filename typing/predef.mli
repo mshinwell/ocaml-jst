@@ -26,6 +26,8 @@ val type_float32: type_expr
 val type_bool: type_expr
 val type_unit: type_expr
 val type_exn: type_expr
+val type_eff: type_expr -> type_expr
+val type_continuation: type_expr -> type_expr -> type_expr
 val type_array: type_expr -> type_expr
 val type_iarray: type_expr -> type_expr
 val type_list: type_expr -> type_expr
@@ -59,6 +61,7 @@ val path_float32: Path.t
 val path_bool: Path.t
 val path_unit: Path.t
 val path_exn: Path.t
+val path_eff: Path.t
 val path_array: Path.t
 val path_iarray: Path.t
 val path_list: Path.t
@@ -69,6 +72,7 @@ val path_int64: Path.t
 val path_lazy_t: Path.t
 val path_extension_constructor: Path.t
 val path_floatarray: Path.t
+<<<<<<< HEAD
 val path_lexing_position: Path.t
 
 val path_unboxed_float: Path.t
@@ -83,6 +87,10 @@ val path_int32x4: Path.t
 val path_int64x2: Path.t
 val path_float32x4: Path.t
 val path_float64x2: Path.t
+||||||| 121bedcfd2
+=======
+val path_continuation: Path.t
+>>>>>>> ocaml/trunk
 
 val path_match_failure: Path.t
 val path_invalid_argument: Path.t

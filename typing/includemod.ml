@@ -133,24 +133,26 @@ let mark_positive = function
   | Mark_both | Mark_positive -> true
   | Mark_negative | Mark_neither -> false
 
-(* All functions "blah env x1 x2" check that x1 is included in x2,
-   i.e. that x1 is the type of an implementation that fulfills the
-   specification x2. If not, Error is raised with a backtrace of the error. *)
+module Core_inclusion = struct
+  (* All functions "blah env x1 x2" check that x1 is included in x2,
+     i.e. that x1 is the type of an implementation that fulfills the
+     specification x2. If not, Error is raised with a backtrace of the error. *)
 
-(* Inclusion between value descriptions *)
+  (* Inclusion between value descriptions *)
 
-let value_descriptions ~loc env ~mark subst id vd1 vd2 =
-  Cmt_format.record_value_dependency vd1 vd2;
-  if mark_positive mark then
-    Env.mark_value_used vd1.val_uid;
-  let vd2 = Subst.value_description subst vd2 in
-  try
-    Ok (Includecore.value_descriptions ~loc env (Ident.name id) vd1 vd2)
-  with Includecore.Dont_match err ->
-    Error Error.(Core (Value_descriptions (diff vd1 vd2 err)))
+  let value_descriptions ~loc env ~mark subst id vd1 vd2 =
+    Cmt_format.record_value_dependency vd1 vd2;
+    if mark_positive mark then
+      Env.mark_value_used vd1.val_uid;
+    let vd2 = Subst.value_description subst vd2 in
+    try
+      Ok (Includecore.value_descriptions ~loc env (Ident.name id) vd1 vd2)
+    with Includecore.Dont_match err ->
+      Error Error.(Core (Value_descriptions (diff vd1 vd2 err)))
 
-(* Inclusion between type declarations *)
+  (* Inclusion between type declarations *)
 
+<<<<<<< HEAD
 let type_declarations ~loc env ~mark subst id decl1 decl2 =
   let mark = mark_positive mark in
   if mark then
@@ -163,32 +165,92 @@ let type_declarations ~loc env ~mark subst id decl1 decl2 =
   | None -> Ok Tcoerce_none
   | Some err ->
       Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
-
-(* Inclusion between extension constructors *)
-
-let extension_constructors ~loc env ~mark  subst id ext1 ext2 =
+||||||| 121bedcfd2
+let type_declarations ~loc env ~mark ?old_env:_ subst id decl1 decl2 =
   let mark = mark_positive mark in
-  let ext2 = Subst.extension_constructor subst ext2 in
-  match Includecore.extension_constructors ~loc env ~mark id ext1 ext2 with
+  if mark then
+    Env.mark_type_used decl1.type_uid;
+  let decl2 = Subst.type_declaration subst decl2 in
+  match
+    Includecore.type_declarations ~loc env ~mark
+      (Ident.name id) decl1 (Path.Pident id) decl2
+  with
   | None -> Ok Tcoerce_none
   | Some err ->
-      Error Error.(Core(Extension_constructors(diff ext1 ext2 err)))
+      Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
+=======
+  let type_declarations ~loc env ~mark subst id decl1 decl2 =
+    let mark = mark_positive mark in
+    if mark then
+      Env.mark_type_used decl1.type_uid;
+    let decl2 = Subst.type_declaration subst decl2 in
+    match
+      Includecore.type_declarations ~loc env ~mark
+        (Ident.name id) decl1 (Path.Pident id) decl2
+    with
+    | None -> Ok Tcoerce_none
+    | Some err ->
+        Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
+>>>>>>> ocaml/trunk
 
-(* Inclusion between class declarations *)
+  (* Inclusion between extension constructors *)
 
+  let extension_constructors ~loc env ~mark  subst id ext1 ext2 =
+    let mark = mark_positive mark in
+    let ext2 = Subst.extension_constructor subst ext2 in
+    match Includecore.extension_constructors ~loc env ~mark id ext1 ext2 with
+    | None -> Ok Tcoerce_none
+    | Some err ->
+        Error Error.(Core(Extension_constructors(diff ext1 ext2 err)))
+
+  (* Inclusion between class declarations *)
+
+<<<<<<< HEAD
 let class_type_declarations ~loc env subst decl1 decl2 =
   let decl2 = Subst.cltype_declaration subst decl2 in
   match Includeclass.class_type_declarations ~loc env decl1 decl2 with
     []     -> Ok Tcoerce_none
   | reason ->
       Error Error.(Core(Class_type_declarations(diff decl1 decl2 reason)))
+||||||| 121bedcfd2
+let class_type_declarations ~loc ~old_env:_ env  subst decl1 decl2 =
+  let decl2 = Subst.cltype_declaration subst decl2 in
+  match Includeclass.class_type_declarations ~loc env decl1 decl2 with
+    []     -> Ok Tcoerce_none
+  | reason ->
+      Error Error.(Core(Class_type_declarations(diff decl1 decl2 reason)))
+=======
+  let class_type_declarations ~loc env ~mark:_ subst _id decl1 decl2 =
+    let decl2 = Subst.cltype_declaration subst decl2 in
+    match Includeclass.class_type_declarations ~loc env decl1 decl2 with
+      []     -> Ok Tcoerce_none
+    | reason ->
+        Error Error.(Core(Class_type_declarations(diff decl1 decl2 reason)))
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
 let class_declarations env subst decl1 decl2 =
   let decl2 = Subst.class_declaration subst decl2 in
   match Includeclass.class_declarations env decl1 decl2 with
     []     -> Ok Tcoerce_none
   | reason ->
      Error Error.(Core(Class_declarations(diff decl1 decl2 reason)))
+||||||| 121bedcfd2
+let class_declarations ~old_env:_ env  subst decl1 decl2 =
+  let decl2 = Subst.class_declaration subst decl2 in
+  match Includeclass.class_declarations env decl1 decl2 with
+    []     -> Ok Tcoerce_none
+  | reason ->
+     Error Error.(Core(Class_declarations(diff decl1 decl2 reason)))
+=======
+  let class_declarations ~loc:_ env ~mark:_ subst _id decl1 decl2 =
+    let decl2 = Subst.class_declaration subst decl2 in
+    match Includeclass.class_declarations env decl1 decl2 with
+      []     -> Ok Tcoerce_none
+    | reason ->
+        Error Error.(Core(Class_declarations(diff decl1 decl2 reason)))
+end
+>>>>>>> ocaml/trunk
 
 (* Extract name, kind and ident from a signature item *)
 
@@ -292,10 +354,10 @@ let rec print_coercion ppf c =
         print_coercion out
   | Tcoerce_primitive {pc_desc; pc_env = _; pc_type}  ->
       pr "prim %s@ (%a)" pc_desc.Primitive.prim_name
-        Printtyp.raw_type_expr pc_type
+        Rawprinttyp.type_expr pc_type
   | Tcoerce_alias (_, p, c) ->
       pr "@[<2>alias %a@ (%a)@]"
-        Printtyp.path p
+        Printtyp.Compat.path p
         print_coercion c
 and print_coercion2 ppf (n, c) =
   Format.fprintf ppf "@[%d,@ %a@]" n print_coercion c
@@ -454,6 +516,7 @@ module Sign_diff = struct
     }
 end
 
+<<<<<<< HEAD
 (* Quickly compare module types without expanding them, succeeding only if mty1
   is a subtype of mty2 with no coercion  *)
 let rec shallow_modtypes env subst mty1 mty2 =
@@ -491,6 +554,27 @@ and shallow_module_paths env subst p1 mty2 p2 =
     | Mty_alias _ | Mty_ident _ | Mty_signature _ | Mty_functor _
     | exception Not_found -> false
 
+||||||| 121bedcfd2
+=======
+(** Core type system subtyping-like relation that we want to lift at the module
+    level. We have two relations that we want to lift:
+
+  - the normal subtyping relation [<:].
+  - the coarse-grain consistency relation [C], which is defined by
+   [d1 C d2] if there is an environment [E] such that [E |- d1 <: d2]. *)
+type 'a core_incl =
+  loc:Location.t -> Env.t -> mark:mark -> Subst.t -> Ident.t ->
+  'a -> 'a -> (module_coercion, Error.sigitem_symptom) result
+
+type core_relation = {
+  value_descriptions: Types.value_description core_incl;
+  type_declarations: Types.type_declaration core_incl;
+  extension_constructors: Types.extension_constructor core_incl;
+  class_declarations: Types.class_declaration core_incl;
+  class_type_declarations: Types.class_type_declaration core_incl;
+}
+
+>>>>>>> ocaml/trunk
 (**
    In the group of mutual functions below, the [~in_eq] argument is [true] when
    we are in fact checking equality of module types.
@@ -507,8 +591,8 @@ and shallow_module_paths env subst p1 mty2 p2 =
    described above.
 *)
 
-let rec modtypes ~in_eq ~loc env ~mark subst mty1 mty2 shape =
-  match try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 shape with
+let rec modtypes ~core ~in_eq ~loc env ~mark subst mty1 mty2 shape =
+  match try_modtypes ~core ~in_eq ~loc env ~mark subst mty1 mty2 shape with
   | Ok _ as ok -> ok
   | Error reason ->
     let mty1 = Subst.Lazy.force_modtype mty1 in
@@ -517,6 +601,7 @@ let rec modtypes ~in_eq ~loc env ~mark subst mty1 mty2 shape =
     in
     Error Error.(diff mty1 mty2 reason)
 
+<<<<<<< HEAD
 and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
   let open Subst.Lazy in
   (* Do a quick nominal comparison for simple types and if that fails, try to
@@ -525,7 +610,13 @@ and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
     | Mty_alias _ -> true
     | _ -> false
   in
+||||||| 121bedcfd2
+and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
+=======
+and try_modtypes ~core ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
+>>>>>>> ocaml/trunk
   match mty1, mty2 with
+<<<<<<< HEAD
   | _ when shallow_modtypes env subst mty1 mty2 ->
     Ok (Tcoerce_none, orig_shape)
 
@@ -543,14 +634,128 @@ and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
             with
             | Ok _ as x -> x
             | Error reason -> Error (Error.After_alias_expansion reason)
+||||||| 121bedcfd2
+  | (Mty_alias p1, Mty_alias p2) ->
+      if Env.is_functor_arg p2 env then
+        Error (Error.Invalid_module_alias p2)
+      else if not (equal_module_paths env p1 subst p2) then
+          Error Error.(Mt_core Incompatible_aliases)
+      else Ok (Tcoerce_none, orig_shape)
+  | (Mty_alias p1, _) -> begin
+      match
+        Env.normalize_module_path (Some Location.none) env p1
+      with
+      | exception Env.Error (Env.Missing_module (_, _, path)) ->
+          Error Error.(Mt_core(Unbound_module_path path))
+      | p1 ->
+          begin match expand_module_alias ~strengthen:false env p1 with
+          | Error e -> Error (Error.Mt_core e)
+          | Ok mty1 ->
+              match strengthened_modtypes ~in_eq ~loc ~aliasable:true env ~mark
+                      subst mty1 p1 mty2 orig_shape
+              with
+              | Ok _ as x -> x
+              | Error reason -> Error (Error.After_alias_expansion reason)
+=======
+  | (Mty_alias p1, Mty_alias p2) ->
+      if Env.is_functor_arg p2 env then
+        Error (Error.Invalid_module_alias p2)
+      else if not (equal_module_paths env p1 subst p2) then
+          Error Error.(Mt_core Incompatible_aliases)
+      else Ok (Tcoerce_none, orig_shape)
+  | (Mty_alias p1, _) -> begin
+      match
+        Env.normalize_module_path (Some Location.none) env p1
+      with
+      | exception Env.Error (Env.Missing_module (_, _, path)) ->
+          Error Error.(Mt_core(Unbound_module_path path))
+      | p1 ->
+          begin match expand_module_alias ~strengthen:false env p1 with
+          | Error e -> Error (Error.Mt_core e)
+          | Ok mty1 ->
+              match strengthened_modtypes ~core ~in_eq ~loc ~aliasable:true env
+                      ~mark subst mty1 p1 mty2 orig_shape
+              with
+              | Ok _ as x -> x
+              | Error reason -> Error (Error.After_alias_expansion reason)
+>>>>>>> ocaml/trunk
           end
+<<<<<<< HEAD
         | exception Not_found ->
             Error (Error.Mt_core (Error.Unbound_module_path p1))
-        end
+||||||| 121bedcfd2
     end
+  | (Mty_ident p1, Mty_ident p2) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      if Path.same p1 p2 then Ok (Tcoerce_none, orig_shape)
+      else
+        begin match expand_modtype_path env p1, expand_modtype_path env p2 with
+        | Some mty1, Some mty2 ->
+            try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape
+        | None, _  | _, None -> Error (Error.Mt_core Abstract_module_type)
+=======
+    end
+  | (Mty_ident p1, Mty_ident p2) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      if Path.same p1 p2 then Ok (Tcoerce_none, orig_shape)
+      else
+        begin match expand_modtype_path env p1, expand_modtype_path env p2 with
+        | Some mty1, Some mty2 ->
+            try_modtypes ~core ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape
+        | None, _  | _, None -> Error (Error.Mt_core Abstract_module_type)
+>>>>>>> ocaml/trunk
+        end
+<<<<<<< HEAD
+    end
+||||||| 121bedcfd2
+  | (Mty_ident p1, _) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      begin match expand_modtype_path env p1 with
+      | Some p1 ->
+          try_modtypes ~in_eq ~loc env ~mark subst p1 mty2 orig_shape
+      | None -> Error (Error.Mt_core Abstract_module_type)
+      end
+  | (_, Mty_ident p2) ->
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      begin match expand_modtype_path env p2 with
+      | Some p2 -> try_modtypes ~in_eq ~loc env ~mark subst mty1 p2 orig_shape
+      | None ->
+          begin match mty1 with
+          | Mty_functor _ ->
+              let params1 = retrieve_functor_params env mty1 in
+              let d = Error.sdiff params1 ([],mty2) in
+              Error Error.(Functor (Params d))
+          | _ -> Error Error.(Mt_core Not_an_identifier)
+          end
+      end
+=======
+  | (Mty_ident p1, _) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      begin match expand_modtype_path env p1 with
+      | Some p1 ->
+          try_modtypes ~core ~in_eq ~loc env ~mark subst p1 mty2 orig_shape
+      | None -> Error (Error.Mt_core Abstract_module_type)
+      end
+  | (_, Mty_ident p2) ->
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      begin match expand_modtype_path env p2 with
+      | Some p2 ->
+          try_modtypes ~core ~in_eq ~loc env ~mark subst mty1 p2 orig_shape
+      | None ->
+          begin match mty1 with
+          | Mty_functor _ ->
+              let params1 = retrieve_functor_params env mty1 in
+              let d = Error.sdiff params1 ([],mty2) in
+              Error Error.(Functor (Params d))
+          | _ -> Error Error.(Mt_core Not_an_identifier)
+          end
+      end
+>>>>>>> ocaml/trunk
   | (Mty_signature sig1, Mty_signature sig2) ->
       begin match
-        signatures ~in_eq ~loc env ~mark subst sig1 sig2 orig_shape
+        signatures ~core ~in_eq ~loc env ~mark subst sig1 sig2 orig_shape
       with
       | Ok _ as ok -> ok
       | Error e -> Error (Error.Signature e)
@@ -558,7 +763,7 @@ and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
 
   | Mty_functor (param1, res1), Mty_functor (param2, res2) ->
       let cc_arg, env, subst =
-        functor_param ~in_eq ~loc env ~mark:(negate_mark mark)
+        functor_param ~core ~in_eq ~loc env ~mark:(negate_mark mark)
           subst param1 param2
       in
       let var, res_shape =
@@ -566,16 +771,18 @@ and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
         | Some (var, res_shape) -> var, res_shape
         | None ->
             (* Using a fresh variable with a placeholder uid here is fine: users
-               will never try to jump to the definition of that variable.
-               If they try to jump to the parameter from inside the functor,
-               they will use the variable shape that is stored in the local
-               environment.  *)
+               will never try to jump to the definition of that variable. If
+               they try to jump to the parameter from inside the functor, they
+               will use the variable shape that is stored in the local
+               environment. *)
             let var, shape_var =
               Shape.fresh_var Uid.internal_not_actually_unique
             in
             var, Shape.app orig_shape ~arg:shape_var
       in
-      let cc_res = modtypes ~in_eq ~loc env ~mark subst res1 res2 res_shape in
+      let cc_res =
+        modtypes ~core ~in_eq ~loc env ~mark subst res1 res2 res_shape
+      in
       begin match cc_arg, cc_res with
       | Ok Tcoerce_none, Ok (Tcoerce_none, final_res_shape) ->
           let final_shape =
@@ -663,8 +870,14 @@ and try_modtypes ~in_eq ~loc env ~mark subst mty1 mty2 orig_shape =
 
 (* Functor parameters *)
 
+<<<<<<< HEAD
 and functor_param ~in_eq ~loc env ~mark subst param1 param2 =
   let open Subst.Lazy in
+||||||| 121bedcfd2
+and functor_param ~in_eq ~loc env ~mark subst param1 param2 =
+=======
+and functor_param ~core ~in_eq ~loc env ~mark subst param1 param2 =
+>>>>>>> ocaml/trunk
   match param1, param2 with
   | Unit, Unit ->
       Ok Tcoerce_none, env, subst
@@ -672,7 +885,7 @@ and functor_param ~in_eq ~loc env ~mark subst param1 param2 =
       let arg2' = Subst.Lazy.modtype Keep subst arg2 in
       let cc_arg =
         match
-          modtypes ~in_eq ~loc env ~mark Subst.identity arg2' arg1
+          modtypes ~core ~in_eq ~loc env ~mark Subst.identity arg2' arg1
                 Shape.dummy_mod
         with
         | Ok (cc, _) -> Ok cc
@@ -702,22 +915,61 @@ and equate_one_functor_param subst env arg2' name1 name2  =
   | None, None ->
       env, subst
 
-and strengthened_modtypes ~in_eq ~loc ~aliasable env ~mark
+and strengthened_modtypes ~core ~in_eq ~loc ~aliasable env ~mark
     subst mty1 path1 mty2 shape =
+<<<<<<< HEAD
   let mty1 = Mtype.strengthen_lazy ~aliasable mty1 path1 in
   modtypes ~in_eq ~loc env ~mark subst mty1 mty2 shape
+||||||| 121bedcfd2
+  match mty1, mty2 with
+  | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
+      Ok (Tcoerce_none, shape)
+  | _, _ ->
+      let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
+      modtypes ~in_eq ~loc env ~mark subst mty1 mty2 shape
+=======
+  match mty1, mty2 with
+  | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
+      Ok (Tcoerce_none, shape)
+  | _, _ ->
+      let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
+      modtypes ~core ~in_eq ~loc env ~mark subst mty1 mty2 shape
+>>>>>>> ocaml/trunk
 
-and strengthened_module_decl ~loc ~aliasable env ~mark
+and strengthened_module_decl ~core ~loc ~aliasable env ~mark
     subst md1 path1 md2 shape =
+<<<<<<< HEAD
   let md1 = Subst.Lazy.of_module_decl md1 in
   let md1 = Mtype.strengthen_lazy_decl ~aliasable md1 path1 in
   let mty2 = Subst.Lazy.of_modtype md2.md_type in
   modtypes ~in_eq:false ~loc env ~mark subst md1.md_type mty2 shape
+||||||| 121bedcfd2
+  match md1.md_type, md2.md_type with
+  | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
+      Ok (Tcoerce_none, shape)
+  | _, _ ->
+      let md1 = Mtype.strengthen_decl ~aliasable env md1 path1 in
+      modtypes ~in_eq:false ~loc env ~mark subst md1.md_type md2.md_type shape
+=======
+  match md1.md_type, md2.md_type with
+  | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
+      Ok (Tcoerce_none, shape)
+  | _, _ ->
+      let md1 = Mtype.strengthen_decl ~aliasable env md1 path1 in
+      modtypes ~core ~in_eq:false ~loc env ~mark subst
+        md1.md_type md2.md_type shape
+>>>>>>> ocaml/trunk
 
 (* Inclusion between signatures *)
 
+<<<<<<< HEAD
 and signatures ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
   let open Subst.Lazy in
+||||||| 121bedcfd2
+and signatures  ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
+=======
+and signatures ~core ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
+>>>>>>> ocaml/trunk
   (* Environment used to check inclusion of components *)
   let sig1 = force_signature_once sig1 in
   let sig2 = force_signature_once sig2 in
@@ -741,7 +993,148 @@ and signatures ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
       el, rl
     ) (0, 0) sig2
   in
+<<<<<<< HEAD
+||||||| 121bedcfd2
+  (* Pair each component of sig2 with a component of sig1,
+     identifying the names along the way.
+     Return a coercion list indicating, for all run-time components
+     of sig2, the position of the matching run-time components of sig1
+     and the coercion to be applied to it. *)
+  let rec pair_components subst paired unpaired = function
+      [] ->
+        let open Sign_diff in
+        let d =
+          signature_components ~in_eq ~loc env ~mark new_env subst mod_shape
+            Shape.Map.empty
+            (List.rev paired)
+        in
+        begin match unpaired, d.errors, d.runtime_coercions, d.leftovers with
+            | [], [], cc, [] ->
+                let shape =
+                  if not d.deep_modifications && exported_len1 = exported_len2
+                  then mod_shape
+                  else Shape.str ?uid:mod_shape.Shape.uid d.shape_map
+                in
+                if runtime_len1 = runtime_len2 then (* see PR#5098 *)
+                  Ok (simplify_structure_coercion cc id_pos_list, shape)
+                else
+                  Ok (Tcoerce_structure (cc, id_pos_list), shape)
+            | missings, incompatibles, runtime_coercions, leftovers ->
+                Error {
+                  Error.env=new_env;
+                  missings;
+                  incompatibles;
+                  oks=runtime_coercions;
+                  leftovers;
+                }
+        end
+    | item2 :: rem ->
+        let (id2, _loc, name2) = item_ident_name item2 in
+        let name2, report =
+          match item2, name2 with
+            Sig_type (_, {type_manifest=None}, _, _), {name=s; kind=Field_type}
+            when Btype.is_row_name s ->
+              (* Do not report in case of failure,
+                 as the main type will generate an error *)
+              { kind=Field_type; name=String.sub s 0 (String.length s - 4) },
+              false
+          | _ -> name2, true
+        in
+        begin match FieldMap.find name2 comps1 with
+        | (id1, item1, pos1) ->
+          let new_subst =
+            match item2 with
+              Sig_type _ ->
+                Subst.add_type id2 (Path.Pident id1) subst
+            | Sig_module _ ->
+                Subst.add_module id2 (Path.Pident id1) subst
+            | Sig_modtype _ ->
+                Subst.add_modtype id2 (Mty_ident (Path.Pident id1)) subst
+            | Sig_value _ | Sig_typext _
+            | Sig_class _ | Sig_class_type _ ->
+                subst
+          in
+          pair_components new_subst
+            ((item1, item2, pos1) :: paired) unpaired rem
+        | exception Not_found ->
+          let unpaired =
+            if report then
+              item2 :: unpaired
+            else unpaired in
+          pair_components subst paired unpaired rem
+        end in
+=======
+  (* Pair each component of sig2 with a component of sig1,
+     identifying the names along the way.
+     Return a coercion list indicating, for all run-time components
+     of sig2, the position of the matching run-time components of sig1
+     and the coercion to be applied to it. *)
+  let rec pair_components ~core subst paired unpaired = function
+      [] ->
+        let open Sign_diff in
+        let d =
+          signature_components ~core ~in_eq ~loc env ~mark new_env subst
+            mod_shape Shape.Map.empty
+            (List.rev paired)
+        in
+        begin match unpaired, d.errors, d.runtime_coercions, d.leftovers with
+            | [], [], cc, [] ->
+                let shape =
+                  if not d.deep_modifications && exported_len1 = exported_len2
+                  then mod_shape
+                  else Shape.str ?uid:mod_shape.Shape.uid d.shape_map
+                in
+                if runtime_len1 = runtime_len2 then (* see PR#5098 *)
+                  Ok (simplify_structure_coercion cc id_pos_list, shape)
+                else
+                  Ok (Tcoerce_structure (cc, id_pos_list), shape)
+            | missings, incompatibles, runtime_coercions, leftovers ->
+                Error {
+                  Error.env=new_env;
+                  missings;
+                  incompatibles;
+                  oks=runtime_coercions;
+                  leftovers;
+                }
+        end
+    | item2 :: rem ->
+        let (id2, _loc, name2) = item_ident_name item2 in
+        let name2, report =
+          match item2, name2 with
+            Sig_type (_, {type_manifest=None}, _, _), {name=s; kind=Field_type}
+            when Btype.is_row_name s ->
+              (* Do not report in case of failure,
+                 as the main type will generate an error *)
+              { kind=Field_type; name=String.sub s 0 (String.length s - 4) },
+              false
+          | _ -> name2, true
+        in
+        begin match FieldMap.find name2 comps1 with
+        | (id1, item1, pos1) ->
+          let new_subst =
+            match item2 with
+              Sig_type _ ->
+                Subst.add_type id2 (Path.Pident id1) subst
+            | Sig_module _ ->
+                Subst.add_module id2 (Path.Pident id1) subst
+            | Sig_modtype _ ->
+                Subst.add_modtype id2 (Mty_ident (Path.Pident id1)) subst
+            | Sig_value _ | Sig_typext _
+            | Sig_class _ | Sig_class_type _ ->
+                subst
+          in
+          pair_components ~core new_subst
+            ((item1, item2, pos1) :: paired) unpaired rem
+        | exception Not_found ->
+          let unpaired =
+            if report then
+              item2 :: unpaired
+            else unpaired in
+          pair_components ~core subst paired unpaired rem
+        end in
+>>>>>>> ocaml/trunk
   (* Do the pairing and checking, and return the final coercion *)
+<<<<<<< HEAD
   let paired, unpaired, subst = pair_components subst comps1 sig2 in
   let d =
     signature_components ~in_eq ~loc ~mark new_env subst mod_shape
@@ -766,12 +1159,27 @@ and signatures ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
           missings = List.map force_signature_item missings;
           incompatibles;
         }
+||||||| 121bedcfd2
+  pair_components subst [] [] sig2
+=======
+  pair_components ~core subst [] [] sig2
+>>>>>>> ocaml/trunk
 
 (* Inclusion between signature components *)
+<<<<<<< HEAD
 and signature_components :
   'a. in_eq:_ -> loc:_ -> mark:_ -> _ -> _ -> _ -> _ -> (_ * _ * 'a) list -> 'a Sign_diff.t =
   fun ~in_eq ~loc ~mark env subst orig_shape shape_map paired ->
   let open Subst.Lazy in
+||||||| 121bedcfd2
+
+and signature_components  ~in_eq ~loc old_env ~mark env subst
+    orig_shape shape_map paired =
+=======
+
+and signature_components ~core ~in_eq ~loc old_env ~mark env subst
+    orig_shape shape_map paired =
+>>>>>>> ocaml/trunk
   match paired with
   | [] -> Sign_diff.{ empty with shape_map }
   | (sigi1, sigi2, pos) :: rem ->
@@ -780,9 +1188,16 @@ and signature_components :
         match sigi1, sigi2 with
         | Sig_value(id1, valdecl1, _) ,Sig_value(_id2, valdecl2, _) ->
             let item =
+<<<<<<< HEAD
               value_descriptions ~loc env ~mark subst id1
                 (Subst.Lazy.force_value_description valdecl1)
                 (Subst.Lazy.force_value_description valdecl2)
+||||||| 121bedcfd2
+              value_descriptions ~loc env ~mark subst id1 valdecl1 valdecl2
+=======
+              core.value_descriptions ~loc env ~mark subst id1
+                valdecl1 valdecl2
+>>>>>>> ocaml/trunk
             in
             let item = mark_error_as_recoverable item in
             let present_at_runtime = match valdecl2.val_kind with
@@ -793,7 +1208,13 @@ and signature_components :
             id1, item, shape_map, present_at_runtime
         | Sig_type(id1, tydec1, _, _), Sig_type(_id2, tydec2, _, _) ->
             let item =
+<<<<<<< HEAD
               type_declarations ~loc env ~mark subst id1 tydec1 tydec2
+||||||| 121bedcfd2
+              type_declarations ~loc ~old_env env ~mark subst id1 tydec1 tydec2
+=======
+              core.type_declarations ~loc env ~mark subst id1 tydec1 tydec2
+>>>>>>> ocaml/trunk
             in
             let item = mark_error_as_unrecoverable item in
             (* Right now we don't filter hidden constructors / labels from the
@@ -802,7 +1223,7 @@ and signature_components :
             id1, item, shape_map, false
         | Sig_typext(id1, ext1, _, _), Sig_typext(_id2, ext2, _, _) ->
             let item =
-              extension_constructors ~loc env ~mark  subst id1 ext1 ext2
+              core.extension_constructors ~loc env ~mark  subst id1 ext1 ext2
             in
             let item = mark_error_as_unrecoverable item in
             let shape_map =
@@ -815,8 +1236,8 @@ and signature_components :
                 Shape.(proj orig_shape (Item.module_ id1))
               in
               let item =
-                module_declarations ~in_eq ~loc env ~mark subst id1 mty1 mty2
-                  orig_shape
+                module_declarations ~core ~in_eq ~loc env ~mark subst id1
+                  mty1 mty2 orig_shape
               in
               let item, shape_map =
                 match item with
@@ -844,7 +1265,7 @@ and signature_components :
             end
         | Sig_modtype(id1, info1, _), Sig_modtype(_id2, info2, _) ->
             let item =
-              modtype_infos ~in_eq ~loc env ~mark  subst id1 info1 info2
+              modtype_infos ~core ~in_eq ~loc env ~mark  subst id1 info1 info2
             in
             let shape_map =
               Shape.Map.add_module_type_proj shape_map id1 orig_shape
@@ -853,7 +1274,13 @@ and signature_components :
             id1, item, shape_map, false
         | Sig_class(id1, decl1, _, _), Sig_class(_id2, decl2, _, _) ->
             let item =
+<<<<<<< HEAD
               class_declarations env subst decl1 decl2
+||||||| 121bedcfd2
+              class_declarations ~old_env env subst decl1 decl2
+=======
+              core.class_declarations ~loc env ~mark subst id1 decl1 decl2
+>>>>>>> ocaml/trunk
             in
             let shape_map =
               Shape.Map.add_class_proj shape_map id1 orig_shape
@@ -862,7 +1289,13 @@ and signature_components :
             id1, item, shape_map, true
         | Sig_class_type(id1, info1, _, _), Sig_class_type(_id2, info2, _, _) ->
             let item =
+<<<<<<< HEAD
               class_type_declarations ~loc env subst info1 info2
+||||||| 121bedcfd2
+              class_type_declarations ~loc ~old_env env subst info1 info2
+=======
+              core.class_type_declarations ~loc env ~mark subst id1 info1 info2
+>>>>>>> ocaml/trunk
             in
             let item = mark_error_as_unrecoverable item in
             let shape_map =
@@ -889,7 +1322,13 @@ and signature_components :
       in
       let rest =
         if continue then
+<<<<<<< HEAD
           signature_components ~in_eq ~loc ~mark env subst
+||||||| 121bedcfd2
+          signature_components ~in_eq ~loc old_env ~mark env subst
+=======
+          signature_components ~core ~in_eq ~loc old_env ~mark env subst
+>>>>>>> ocaml/trunk
             orig_shape shape_map rem
         else
           let rem = List.map
@@ -919,8 +1358,14 @@ and module_declarations  ~in_eq ~loc env ~mark  subst id1 md1 md2 orig_shape =
 
 (* Inclusion between module type specifications *)
 
+<<<<<<< HEAD
 and modtype_infos ~in_eq ~loc env ~mark subst id info1 info2 =
   let open Subst.Lazy in
+||||||| 121bedcfd2
+and modtype_infos ~in_eq ~loc env ~mark subst id info1 info2 =
+=======
+and modtype_infos ~core ~in_eq ~loc env ~mark subst id info1 info2 =
+>>>>>>> ocaml/trunk
   Builtin_attributes.check_alerts_inclusion
     ~def:info1.mtd_loc
     ~use:info2.mtd_loc
@@ -933,10 +1378,10 @@ and modtype_infos ~in_eq ~loc env ~mark subst id info1 info2 =
       (None, None) -> Ok Tcoerce_none
     | (Some _, None) -> Ok Tcoerce_none
     | (Some mty1, Some mty2) ->
-        check_modtype_equiv ~in_eq ~loc env ~mark mty1 mty2
+        check_modtype_equiv ~core ~in_eq ~loc env ~mark mty1 mty2
     | (None, Some mty2) ->
         let mty1 = Mty_ident(Path.Pident id) in
-        check_modtype_equiv ~in_eq ~loc env ~mark mty1 mty2 in
+        check_modtype_equiv ~core ~in_eq ~loc env ~mark mty1 mty2 in
   match r with
   | Ok _ as ok -> ok
   | Error e ->
@@ -944,9 +1389,10 @@ and modtype_infos ~in_eq ~loc env ~mark subst id info1 info2 =
       let info2 = Subst.Lazy.force_modtype_decl info2 in
       Error Error.(Module_type_declaration (diff info1 info2 e))
 
-and check_modtype_equiv ~in_eq ~loc env ~mark mty1 mty2 =
+and check_modtype_equiv ~core ~in_eq ~loc env ~mark mty1 mty2 =
   let c1 =
-    modtypes ~in_eq:true ~loc env ~mark Subst.identity mty1 mty2 Shape.dummy_mod
+    modtypes ~core ~in_eq:true ~loc env ~mark Subst.identity mty1 mty2
+      Shape.dummy_mod
   in
   let c2 =
     (* For nested module type paths, we check only one side of the equivalence:
@@ -957,7 +1403,7 @@ and check_modtype_equiv ~in_eq ~loc env ~mark mty1 mty2 =
     else
       let mark = negate_mark mark in
       Some (
-        modtypes ~in_eq:true ~loc env ~mark Subst.identity
+        modtypes ~core ~in_eq:true ~loc env ~mark Subst.identity
           mty2 mty1 Shape.dummy_mod
       )
   in
@@ -995,7 +1441,15 @@ let can_alias env path =
   in
   no_apply path && not (Env.is_functor_arg path env)
 
+let core_inclusion = Core_inclusion.{
+  type_declarations;
+  value_descriptions;
+  extension_constructors;
+  class_type_declarations;
+  class_declarations;
+}
 
+<<<<<<< HEAD
 let signatures ~in_eq ~loc env ~mark subst sig1 sig2 mod_shape =
   let sig1 = Subst.Lazy.of_signature sig1 in
   let sig2 = Subst.Lazy.of_signature sig2 in
@@ -1012,22 +1466,49 @@ let strengthened_modtypes ~in_eq ~loc ~aliasable env ~mark
   let mty2 = Subst.Lazy.of_modtype mty2 in
   strengthened_modtypes ~in_eq ~loc ~aliasable env ~mark subst mty1
     path1 mty2 shape
+||||||| 121bedcfd2
+=======
+let core_consistency =
+  let type_declarations ~loc:_ env ~mark:_  _ _ d1 d2 =
+    match Includecore.type_declarations_consistency env d1 d2 with
+    | None -> Ok Tcoerce_none
+    | Some err ->  Error Error.(Core(Type_declarations (diff d1 d2 err)))
+  in
+  let value_descriptions ~loc:_ env ~mark:_ _ _ vd1 vd2 =
+    match Includecore.value_descriptions_consistency env vd1 vd2 with
+    | x -> Ok x
+    | exception Includecore.Dont_match err ->
+        Error Error.(Core (Value_descriptions (diff vd1 vd2 err)))
+  in
+  let accept ~loc:_ _env ~mark:_ _subst _id _d1 _d2 = Ok Tcoerce_none in
+  {
+    type_declarations;
+    value_descriptions;
+    class_declarations=accept;
+    class_type_declarations=accept;
+    extension_constructors=accept;
+  }
+>>>>>>> ocaml/trunk
 
 type explanation = Env.t * Error.all
 exception Error of explanation
 
+type application_name =
+  | Anonymous_functor
+  | Full_application_path of Longident.t
+  | Named_leftmost_functor of Longident.t
 exception Apply_error of {
     loc : Location.t ;
     env : Env.t ;
-    lid_app : Longident.t option ;
+    app_name : application_name ;
     mty_f : module_type ;
     args : (Error.functor_arg_descr * module_type) list ;
   }
 
 let check_modtype_inclusion_raw ~loc env mty1 path1 mty2 =
   let aliasable = can_alias env path1 in
-  strengthened_modtypes ~in_eq:false ~loc ~aliasable env ~mark:Mark_both
-    Subst.identity mty1 path1 mty2 Shape.dummy_mod
+  strengthened_modtypes ~core:core_inclusion ~in_eq:false ~loc ~aliasable env
+    ~mark:Mark_both Subst.identity mty1 path1 mty2 Shape.dummy_mod
   |> Result.map fst
 
 let check_modtype_inclusion ~loc env mty1 path1 mty2 =
@@ -1050,8 +1531,8 @@ let check_functor_application_in_path
         in
         let mty_f = (Env.find_module f0_path env).md_type in
         let args = List.map prepare_arg args in
-        let lid_app = Some lid_whole_app in
-        raise (Apply_error {loc; env; lid_app; mty_f; args})
+        let app_name = Full_application_path lid_whole_app in
+        raise (Apply_error {loc; env; app_name; mty_f; args})
       else
         raise Not_found
 
@@ -1062,11 +1543,18 @@ let () =
 (* Check that an implementation of a compilation unit meets its
    interface. *)
 
+<<<<<<< HEAD
 let compunit0
     ~comparison env ~mark impl_name impl_sig intf_name intf_sig unit_shape =
+||||||| 121bedcfd2
+let compunit env ~mark impl_name impl_sig intf_name intf_sig unit_shape =
+=======
+let compunit env ~mark impl_name impl_sig intf_name intf_sig unit_shape =
+  let loc = Location.in_file impl_name in
+>>>>>>> ocaml/trunk
   match
-    signatures ~in_eq:false ~loc:(Location.in_file impl_name) env ~mark
-      Subst.identity impl_sig intf_sig unit_shape
+    signatures ~core:core_inclusion ~in_eq:false ~loc env
+      ~mark Subst.identity impl_sig intf_sig unit_shape
   with Result.Error reasons ->
     let diff = Error.diff impl_name intf_name reasons in
     let cdiff =
@@ -1184,10 +1672,18 @@ module Functor_inclusion_diff = struct
         let test st mty1 mty2 =
           let loc = Location.none in
           let res, _, _ =
+<<<<<<< HEAD
             let mty1 = Subst.Lazy.of_functor_parameter mty1 in
             let mty2 = Subst.Lazy.of_functor_parameter mty2 in
             functor_param ~in_eq:false ~loc st.env ~mark:Mark_neither
               st.subst mty1 mty2
+||||||| 121bedcfd2
+            functor_param ~in_eq:false ~loc st.env ~mark:Mark_neither
+              st.subst mty1 mty2
+=======
+            functor_param ~core:core_inclusion ~in_eq:false ~loc st.env
+               ~mark:Mark_neither st.subst mty1 mty2
+>>>>>>> ocaml/trunk
           in
           res
         let update = update
@@ -1246,7 +1742,7 @@ module Functor_app_diff = struct
     | Insert(Named(Some param, param_ty))
     | Change(_, Named(Some param, param_ty), _ ) ->
         (* Change is Delete + Insert: we add the Inserted parameter to the
-           environnement to track equalities with external components that the
+           environment to track equalities with external components that the
            parameter might add. *)
         let mty = Subst.modtype Keep st.subst param_ty in
         let env = Env.add_module ~arg:true param Mp_present mty st.env in
@@ -1281,8 +1777,9 @@ module Functor_app_diff = struct
                 Result.Error (Error.Incompatible_params(arg,param))
             | ( Anonymous | Named _ | Empty_struct ), Named (_, param) ->
                 match
-                  modtypes ~in_eq:false ~loc state.env ~mark:Mark_neither
-                    state.subst arg_mty param Shape.dummy_mod
+                  modtypes ~core:core_inclusion ~in_eq:false ~loc state.env
+                     ~mark:Mark_neither state.subst arg_mty param
+                     Shape.dummy_mod
                 with
                 | Error mty -> Result.Error (Error.Mismatch mty)
                 | Ok (cc, _) -> Ok cc
@@ -1303,22 +1800,29 @@ end
 (* Hide the context and substitution parameters to the outside world *)
 
 let modtypes_with_shape ~shape ~loc env ~mark mty1 mty2 =
-  match modtypes ~in_eq:false ~loc env ~mark
+  match modtypes ~core:core_inclusion ~in_eq:false ~loc env ~mark
           Subst.identity mty1 mty2 shape
   with
   | Ok (cc, shape) -> cc, shape
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
+let modtypes_consistency ~loc env mty1 mty2 =
+  match modtypes ~core:core_consistency ~in_eq:false ~loc env ~mark:Mark_neither
+          Subst.identity mty1 mty2 Shape.dummy_mod
+  with
+  | Ok _ -> ()
+  | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
+
 let modtypes ~loc env ~mark mty1 mty2 =
-  match modtypes ~in_eq:false ~loc env ~mark
+  match modtypes ~core:core_inclusion ~in_eq:false ~loc env ~mark
           Subst.identity mty1 mty2 Shape.dummy_mod
   with
   | Ok (cc, _) -> cc
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
 let signatures env ~mark sig1 sig2 =
-  match signatures ~in_eq:false ~loc:Location.none env ~mark
-          Subst.identity sig1 sig2 Shape.dummy_mod
+  match signatures ~core:core_inclusion ~in_eq:false ~loc:Location.none env
+          ~mark Subst.identity sig1 sig2 Shape.dummy_mod
   with
   | Ok (cc, _) -> cc
   | Error reason -> raise (Error(env,Error.(In_Signature reason)))
@@ -1333,15 +1837,17 @@ let include_functor_signatures env ~mark sig1 sig2 =
   | Error reason -> raise (Error(env,Error.(In_Include_functor_signature reason)))
 
 let type_declarations ~loc env ~mark id decl1 decl2 =
-  match type_declarations ~loc env ~mark Subst.identity id decl1 decl2 with
+  match Core_inclusion.type_declarations ~loc env ~mark
+          Subst.identity id decl1 decl2
+  with
   | Ok _ -> ()
   | Error (Error.Core reason) ->
       raise (Error(env,Error.(In_Type_declaration(id,reason))))
   | Error _ -> assert false
 
 let strengthened_module_decl ~loc ~aliasable env ~mark md1 path1 md2 =
-  match strengthened_module_decl ~loc ~aliasable env ~mark Subst.identity
-    md1 path1 md2 Shape.dummy_mod with
+  match strengthened_module_decl ~core:core_inclusion ~loc ~aliasable env ~mark
+    Subst.identity md1 path1 md2 Shape.dummy_mod with
   | Ok (x, _shape) -> x
   | Error mdiff ->
       raise (Error(env,Error.(In_Module_type mdiff)))
@@ -1353,9 +1859,17 @@ let expand_module_alias ~strengthen env path =
     raise (Error(env,In_Expansion(Error.Unbound_module_path path)))
 
 let check_modtype_equiv ~loc env id mty1 mty2 =
+<<<<<<< HEAD
   let mty1' = Subst.Lazy.of_modtype mty1 in
   let mty2' = Subst.Lazy.of_modtype mty2 in
   match check_modtype_equiv ~in_eq:false ~loc env ~mark:Mark_both mty1' mty2' with
+||||||| 121bedcfd2
+  match check_modtype_equiv ~in_eq:false ~loc env ~mark:Mark_both mty1 mty2 with
+=======
+  match check_modtype_equiv ~core:core_inclusion ~in_eq:false ~loc env
+          ~mark:Mark_both mty1 mty2
+  with
+>>>>>>> ocaml/trunk
   | Ok _ -> ()
   | Error e ->
       raise (Error(env,

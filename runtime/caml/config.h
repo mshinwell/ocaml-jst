@@ -16,9 +16,17 @@
 #ifndef CAML_CONFIG_H
 #define CAML_CONFIG_H
 
+<<<<<<< HEAD
 /* CR ocaml 5 all-runtime5: remove this and all uses of it */
 #define CAML_RUNTIME_5
 
+||||||| 121bedcfd2
+=======
+#include "m.h"
+#include "s.h"
+#include "compatibility.h"
+
+>>>>>>> ocaml/trunk
 /* CAML_NAME_SPACE was introduced in OCaml 3.08 to declare compatibility with
    the newly caml_-prefixed names of C runtime functions and to disable the
    definition of compatibility macros for the un-prefixed names. The
@@ -27,8 +35,6 @@
 #ifndef CAML_NAME_SPACE
 #define CAML_NAME_SPACE
 #endif
-
-#include "m.h"
 
 /* If supported, tell gcc that we can use 32-bit code addresses for
  * threaded code, unless we are compiled for a shared library (-fPIC option) */
@@ -47,19 +53,21 @@
 #define Caml_inline static inline
 #endif
 
-#include "s.h"
-
 #ifndef CAML_CONFIG_H_NO_TYPEDEFS
 
 #include <stddef.h>
+<<<<<<< HEAD
+||||||| 121bedcfd2
+#include <stdbool.h>
+=======
+#include <limits.h>
+>>>>>>> ocaml/trunk
 
 #if defined(HAS_LOCALE_H) || defined(HAS_XLOCALE_H)
 #define HAS_LOCALE
 #endif
 
-#ifdef HAS_STDINT_H
 #include <stdint.h>
-#endif
 
 /* Disable the mingw-w64 *printf shims */
 #if defined(CAML_INTERNALS) && defined(__MINGW32__)
@@ -123,21 +131,6 @@
   #endif
 #endif
 
-#ifndef HAS_STDINT_H
-/* Not a C99 compiler, typically MSVC.  Define the C99 types we use. */
-typedef ARCH_INT32_TYPE int32_t;
-typedef ARCH_UINT32_TYPE uint32_t;
-typedef ARCH_INT64_TYPE int64_t;
-typedef ARCH_UINT64_TYPE uint64_t;
-#if SIZEOF_SHORT == 2
-typedef short int16_t;
-typedef unsigned short uint16_t;
-#else
-#error "No 16-bit integer type available"
-#endif
-typedef unsigned char uint8_t;
-#endif
-
 #if SIZEOF_PTR == SIZEOF_LONG
 /* Standard models: ILP32 or I32LP64 */
 typedef long intnat;
@@ -157,7 +150,10 @@ typedef uint64_t uintnat;
 #error "No integer type available to represent pointers"
 #endif
 
-#define UINTNAT_MAX ((uintnat)-1)
+#define CAML_INTNAT_MIN INTPTR_MIN
+#define CAML_INTNAT_MAX INTPTR_MAX
+#define CAML_UINTNAT_MIN UINTPTR_MIN
+#define CAML_UINTNAT_MAX UINTPTR_MAX
 
 #endif /* CAML_CONFIG_H_NO_TYPEDEFS */
 
@@ -177,11 +173,9 @@ typedef uint64_t uintnat;
 #endif
 
 
-/* We use threaded code interpretation if the compiler provides labels
-   as first-class values (GCC 2.x). */
-
-#if defined(__GNUC__) && __GNUC__ >= 2 && !defined(DEBUG) \
-    && !defined (SHRINKED_GNUC)
+/* We use threaded code interpretation if the C compiler supports the labels as
+   values extension. */
+#if defined(HAVE_LABELS_AS_VALUES) && !defined(DEBUG)
 #define THREADED_CODE
 #endif
 
@@ -261,7 +255,10 @@ typedef uint64_t uintnat;
 /* Default setting for maximum size of custom objects counted as garbage
    in the minor heap.
    Documented in gc.mli */
-#define Custom_minor_max_bsz_def 8192
+#define Custom_minor_max_bsz_def 70000
+
+/* Minimum amount of work to do in a major GC slice. */
+#define Major_slice_work_min 512
 
 /* Minimum amount of work to do in a major GC slice. */
 #define Major_slice_work_min 512

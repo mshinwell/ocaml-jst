@@ -1,8 +1,20 @@
 (* TEST
+<<<<<<< HEAD
  include config;
  include testing;
  binary_modules = "config build_path_prefix_map misc identifiable numbers";
  bytecode;
+||||||| 121bedcfd2
+include config
+include testing
+binary_modules = "config build_path_prefix_map misc identifiable numbers"
+* bytecode
+=======
+ include config;
+ include testing;
+ binary_modules = "config build_path_prefix_map format_doc misc identifiable numbers";
+ bytecode;
+>>>>>>> ocaml/trunk
 *)
 
 let print_int i =

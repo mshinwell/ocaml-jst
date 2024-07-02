@@ -20,6 +20,7 @@ open Asttypes
 open Types
 open Typedtree
 
+<<<<<<< HEAD
 type error = Float32_match
 
 exception Error of error
@@ -43,6 +44,26 @@ let untyped_case { Parsetree.pc_lhs; pc_guard; pc_rhs } =
     has_guard = Option.is_some pc_guard;
     needs_refute = (pc_rhs.pexp_desc = Parsetree.Pexp_unreachable);
   }
+||||||| 121bedcfd2
+=======
+type 'pattern parmatch_case =
+  { pattern : 'pattern;
+    has_guard : bool;
+    needs_refute : bool;
+  }
+
+let typed_case { c_lhs; c_guard; c_rhs } =
+  { pattern = c_lhs;
+    has_guard = Option.is_some c_guard;
+    needs_refute = (c_rhs.exp_desc = Texp_unreachable);
+  }
+
+let untyped_case { Parsetree.pc_lhs; pc_guard; pc_rhs } =
+  { pattern = pc_lhs;
+    has_guard = Option.is_some pc_guard;
+    needs_refute = (pc_rhs.pexp_desc = Parsetree.Pexp_unreachable);
+  }
+>>>>>>> ocaml/trunk
 
 (*************************************)
 (* Utilities for building patterns   *)
@@ -60,8 +81,15 @@ let omega_list = Patterns.omega_list
 
 let extra_pat =
   make_pat
+<<<<<<< HEAD
     (Tpat_var (Ident.create_local "+", mknoloc "+",
       Uid.internal_not_actually_unique, Mode.Value.disallow_right Mode.Value.max))
+||||||| 121bedcfd2
+    (Tpat_var (Ident.create_local "+", mknoloc "+"))
+=======
+    (Tpat_var (Ident.create_local "+", mknoloc "+",
+      Uid.internal_not_actually_unique))
+>>>>>>> ocaml/trunk
     Ctype.none Env.empty
 
 
@@ -326,8 +354,16 @@ module Compat
   | ((Tpat_any|Tpat_var _),_)
   | (_,(Tpat_any|Tpat_var _)) -> true
 (* Structural induction *)
+<<<<<<< HEAD
   | Tpat_alias (p,_,_,_,_),_      -> compat p q
   | _,Tpat_alias (q,_,_,_,_)      -> compat p q
+||||||| 121bedcfd2
+  | Tpat_alias (p,_,_),_      -> compat p q
+  | _,Tpat_alias (q,_,_)      -> compat p q
+=======
+  | Tpat_alias (p,_,_,_),_      -> compat p q
+  | _,Tpat_alias (q,_,_,_)      -> compat p q
+>>>>>>> ocaml/trunk
   | Tpat_or (p1,p2,_),_ ->
       (compat p1 q || compat p2 q)
   | _,Tpat_or (q1,q2,_) ->
@@ -538,7 +574,7 @@ let rec read_args xs r = match xs,r with
 | _,_ ->
     fatal_error "Parmatch.read_args"
 
-let do_set_args ~erase_mutable q r = match q with
+let set_args q r = match q with
 | {pat_desc = Tpat_tuple omegas} ->
     let args,rest = read_args (List.map snd omegas) r in
     make_pat
@@ -547,6 +583,7 @@ let do_set_args ~erase_mutable q r = match q with
       q.pat_type q.pat_env::rest
 | {pat_desc = Tpat_record (omegas,closed)} ->
     let args,rest = read_args omegas r in
+<<<<<<< HEAD
     make_pat
       (Tpat_record
          (List.map2 (fun (lid, lbl,_) arg ->
@@ -558,6 +595,26 @@ let do_set_args ~erase_mutable q r = match q with
             omegas args, closed))
       q.pat_type q.pat_env::
     rest
+||||||| 121bedcfd2
+    make_pat
+      (Tpat_record
+         (List.map2 (fun (lid, lbl,_) arg ->
+           if
+             erase_mutable &&
+             (match lbl.lbl_mut with
+             | Mutable -> true | Immutable -> false)
+           then
+             lid, lbl, omega
+           else
+             lid, lbl, arg)
+            omegas args, closed))
+      q.pat_type q.pat_env::
+    rest
+=======
+    let args =
+      List.map2 (fun (lid, lbl, _) arg -> (lid, lbl, arg)) omegas args in
+    make_pat (Tpat_record (args, closed)) q.pat_type q.pat_env :: rest
+>>>>>>> ocaml/trunk
 | {pat_desc = Tpat_construct (lid, c, omegas, _)} ->
     let args,rest = read_args omegas r in
     make_pat
@@ -587,10 +644,8 @@ let do_set_args ~erase_mutable q r = match q with
     rest
 | {pat_desc=Tpat_constant _|Tpat_any} ->
     q::r (* case any is used in matching.ml *)
-| _ -> fatal_error "Parmatch.set_args"
-
-let set_args q r = do_set_args ~erase_mutable:false q r
-and set_args_erase_mutable q r = do_set_args ~erase_mutable:true q r
+| {pat_desc = (Tpat_var _ | Tpat_alias _ | Tpat_or _); _} ->
+    fatal_error "Parmatch.set_args"
 
 (* Given a matrix of non-empty rows
    p1 :: r1...
@@ -979,8 +1034,15 @@ let build_other ext env =
           (* let c = {c with cstr_name = "*extension*"} in *) (* PR#7330 *)
           make_pat
             (Tpat_var (Ident.create_local "*extension*",
+<<<<<<< HEAD
                        {txt="*extension*"; loc = d.pat_loc},
                        Uid.internal_not_actually_unique, Mode.Value.disallow_right Mode.Value.max))
+||||||| 121bedcfd2
+                       {txt="*extension*"; loc = d.pat_loc}))
+=======
+                       {txt="*extension*"; loc = d.pat_loc},
+                       Uid.internal_not_actually_unique))
+>>>>>>> ocaml/trunk
             Ctype.none Env.empty
       | Construct _ ->
           begin match ext with
@@ -1137,7 +1199,13 @@ let build_other ext env =
 let rec has_instance p = match p.pat_desc with
   | Tpat_variant (l,_,r) when is_absent l r -> false
   | Tpat_any | Tpat_var _ | Tpat_constant _ | Tpat_variant (_,None,_) -> true
+<<<<<<< HEAD
   | Tpat_alias (p,_,_,_,_) | Tpat_variant (_,Some p,_) -> has_instance p
+||||||| 121bedcfd2
+  | Tpat_alias (p,_,_) | Tpat_variant (_,Some p,_) -> has_instance p
+=======
+  | Tpat_alias (p,_,_,_) | Tpat_variant (_,Some p,_) -> has_instance p
+>>>>>>> ocaml/trunk
   | Tpat_or (p1,p2,_) -> has_instance p1 || has_instance p2
   | Tpat_construct (_,_,ps, _) | Tpat_array (_, _, ps) ->
       has_instances ps
@@ -1593,7 +1661,13 @@ let is_var_column rs =
 (* Standard or-args for left-to-right matching *)
 let rec or_args p = match p.pat_desc with
 | Tpat_or (p1,p2,_) -> p1,p2
+<<<<<<< HEAD
 | Tpat_alias (p,_,_,_,_)  -> or_args p
+||||||| 121bedcfd2
+| Tpat_alias (p,_,_)  -> or_args p
+=======
+| Tpat_alias (p,_,_,_)  -> or_args p
+>>>>>>> ocaml/trunk
 | _                 -> assert false
 
 (* Just remove current column *)
@@ -1773,8 +1847,16 @@ and every_both pss qs q1 q2 =
 let rec le_pat p q =
   match (p.pat_desc, q.pat_desc) with
   | (Tpat_var _|Tpat_any),_ -> true
+<<<<<<< HEAD
   | Tpat_alias(p,_,_,_,_), _ -> le_pat p q
   | _, Tpat_alias(q,_,_,_,_) -> le_pat p q
+||||||| 121bedcfd2
+  | Tpat_alias(p,_,_), _ -> le_pat p q
+  | _, Tpat_alias(q,_,_) -> le_pat p q
+=======
+  | Tpat_alias(p,_,_,_), _ -> le_pat p q
+  | _, Tpat_alias(q,_,_,_) -> le_pat p q
+>>>>>>> ocaml/trunk
   | Tpat_constant(c1), Tpat_constant(c2) -> const_compare c1 c2 = 0
   | Tpat_construct(_,c1,ps,_), Tpat_construct(_,c2,qs,_) ->
       Types.equal_tag c1.cstr_tag c2.cstr_tag && le_pats ps qs
@@ -1813,6 +1895,10 @@ let get_mins le ps =
         if List.exists (fun p0 -> le p0 p) ps
         then select_rec r ps
         else select_rec (p::r) ps in
+  (* [select_rec] removes the elements that are followed by a smaller element.
+     An element that is preceded by a smaller element may stay in the list.
+     We thus do two passes on the list, which is returned reversed
+     the first time. *)
   select_rec [] (select_rec [] ps)
 
 (*
@@ -1821,8 +1907,16 @@ let get_mins le ps =
 *)
 
 let rec lub p q = match p.pat_desc,q.pat_desc with
+<<<<<<< HEAD
 | Tpat_alias (p,_,_,_,_),_      -> lub p q
 | _,Tpat_alias (q,_,_,_,_)      -> lub p q
+||||||| 121bedcfd2
+| Tpat_alias (p,_,_),_      -> lub p q
+| _,Tpat_alias (q,_,_)      -> lub p q
+=======
+| Tpat_alias (p,_,_,_),_      -> lub p q
+| _,Tpat_alias (q,_,_,_)      -> lub p q
+>>>>>>> ocaml/trunk
 | (Tpat_any|Tpat_var _),_ -> q
 | _,(Tpat_any|Tpat_var _) -> p
 | Tpat_or (p1,p2,_),_     -> orlub p1 p2 q
@@ -1939,7 +2033,13 @@ let rec initial_matrix = function
 *)
 let rec initial_only_guarded = function
   | [] -> []
+<<<<<<< HEAD
   | { has_guard=false; _} :: rem ->
+||||||| 121bedcfd2
+  | { c_guard = None; _} :: rem ->
+=======
+  | { has_guard = false; _} :: rem ->
+>>>>>>> ocaml/trunk
       initial_only_guarded rem
   | { pattern = pat; _ } :: rem ->
       [pat] :: initial_only_guarded rem
@@ -1953,7 +2053,13 @@ let rec initial_only_guarded = function
 let contains_extension pat =
   exists_pattern
     (function
+<<<<<<< HEAD
      | {pat_desc=Tpat_var (_, {txt="*extension*"}, _, _)} -> true
+||||||| 121bedcfd2
+     | {pat_desc=Tpat_var (_, {txt="*extension*"})} -> true
+=======
+     | {pat_desc=Tpat_var (_, {txt="*extension*"}, _)} -> true
+>>>>>>> ocaml/trunk
      | _ -> false)
     pat
 
@@ -1982,22 +2088,20 @@ let do_check_partial ~pred loc casel pss = match pss with
     | Seq.Cons (v, _rest) ->
       if Warnings.is_active (Warnings.Partial_match "") then begin
         let errmsg =
-          try
-            let buf = Buffer.create 16 in
-            let fmt = Format.formatter_of_buffer buf in
-            Printpat.top_pretty fmt v;
-            if do_match (initial_only_guarded casel) [v] then
-              Buffer.add_string buf
-                "\n(However, some guarded clause may match this value.)";
-            if contains_extension v then
-              Buffer.add_string buf
-                "\nMatching over values of extensible variant types \
-                   (the *extension* above)\n\
-              must include a wild card pattern in order to be exhaustive."
-            ;
-            Buffer.contents buf
-          with _ ->
-            ""
+          let doc = ref Format_doc.Doc.empty in
+          let fmt = Format_doc.formatter doc in
+          Format_doc.fprintf fmt "@[<v>%a" Printpat.top_pretty v;
+          if do_match (initial_only_guarded casel) [v] then
+            Format_doc.fprintf fmt
+              "@,(However, some guarded clause may match this value.)";
+          if contains_extension v then
+            Format_doc.fprintf fmt
+              "@,@[Matching over values of extensible variant types \
+               (the *extension* above)@,\
+               must include a wild card pattern@ in order to be exhaustive.@]"
+          ;
+          Format_doc.fprintf fmt "@]";
+          Format_doc.(asprintf "%a" pp_doc) !doc
         in
         Location.prerr_warning loc (Warnings.Partial_match errmsg)
       end;
@@ -2038,7 +2142,14 @@ let rec collect_paths_from_pat r p = match p.pat_desc with
     List.fold_left
       (fun r (_, _, p) -> collect_paths_from_pat r p)
       r lps
+<<<<<<< HEAD
 | Tpat_variant (_, Some p, _) | Tpat_alias (p,_,_,_,_) -> collect_paths_from_pat r p
+||||||| 121bedcfd2
+| Tpat_variant (_, Some p, _) | Tpat_alias (p,_,_) -> collect_paths_from_pat r p
+=======
+| Tpat_variant (_, Some p, _) | Tpat_alias (p,_,_,_) ->
+    collect_paths_from_pat r p
+>>>>>>> ocaml/trunk
 | Tpat_or (p1,p2,_) ->
     collect_paths_from_pat (collect_paths_from_pat r p1) p2
 | Tpat_lazy p
@@ -2175,7 +2286,13 @@ let inactive ~partial pat =
             List.for_all (fun (_,p) -> loop p) ps
         | Tpat_construct (_, _, ps, _) | Tpat_array (Immutable, _, ps) ->
             List.for_all (fun p -> loop p) ps
+<<<<<<< HEAD
         | Tpat_alias (p,_,_,_,_) | Tpat_variant (_, Some p, _) ->
+||||||| 121bedcfd2
+        | Tpat_alias (p,_,_) | Tpat_variant (_, Some p, _) ->
+=======
+        | Tpat_alias (p,_,_,_) | Tpat_variant (_, Some p, _) ->
+>>>>>>> ocaml/trunk
             loop p
         | Tpat_record (ldps,_) ->
             List.for_all
@@ -2294,9 +2411,21 @@ type amb_row = { row : pattern list ; varsets : Ident.Set.t list; }
 let simplify_head_amb_pat head_bound_variables varsets ~add_column p ps k =
   let rec simpl head_bound_variables varsets p ps k =
     match (Patterns.General.view p).pat_desc with
+<<<<<<< HEAD
     | `Alias (p,x,_,_,_) ->
+||||||| 121bedcfd2
+    | `Alias (p,x,_) ->
+=======
+    | `Alias (p,x,_,_) ->
+>>>>>>> ocaml/trunk
       simpl (Ident.Set.add x head_bound_variables) varsets p ps k
+<<<<<<< HEAD
     | `Var (x, _, _, _) ->
+||||||| 121bedcfd2
+    | `Var (x, _) ->
+=======
+    | `Var (x,_,_) ->
+>>>>>>> ocaml/trunk
       simpl (Ident.Set.add x head_bound_variables) varsets Patterns.omega ps k
     | `Or (p1,p2,_) ->
       simpl head_bound_variables varsets p1 ps

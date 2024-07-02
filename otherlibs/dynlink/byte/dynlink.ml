@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 #2 "otherlibs/dynlink/dynlink.ml"
+||||||| 121bedcfd2
+#3 "otherlibs/dynlink/dynlink.ml"
+=======
+>>>>>>> ocaml/trunk
 (**************************************************************************)
 (*                                                                        *)
 (*                                 OCaml                                  *)
@@ -16,31 +21,55 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
-
-open! Dynlink_compilerlibs
+module Symtable = Dynlink_symtable
+module Config = Dynlink_config
+open Dynlink_cmo_format
 
 module DC = Dynlink_common
 module DT = Dynlink_types
 
+<<<<<<< HEAD
 let convert_cmi_import import =
   let name = Import_info.name import |> Compilation_unit.Name.to_string in
   let crc = Import_info.crc import in
   name, crc
 
+||||||| 121bedcfd2
+=======
+module Compression = struct (* Borrowed from utils/compression.ml *)
+  external zstd_initialize: unit -> bool = "caml_zstd_initialize"
+  let input_value = Stdlib.input_value
+end
+
+let _compression_supported = Compression.zstd_initialize ()
+
+>>>>>>> ocaml/trunk
 module Bytecode = struct
   type filename = string
 
   module Unit_header = struct
+<<<<<<< HEAD
     type t = Cmo_format.compilation_unit_descr
+||||||| 121bedcfd2
+    type t = Cmo_format.compilation_unit
+=======
+    type t = compilation_unit
+>>>>>>> ocaml/trunk
 
+<<<<<<< HEAD
     let name (t : t) = Compilation_unit.full_path_as_string t.cu_name
+||||||| 121bedcfd2
+    let name (t : t) = t.cu_name
+=======
+    let name (t : t) = Symtable.Compunit.name t.cu_name
+>>>>>>> ocaml/trunk
     let crc _t = None
 
     let interface_imports (t : t) =
       List.map convert_cmi_import (Array.to_list t.cu_imports)
 
     let implementation_imports (t : t) =
+<<<<<<< HEAD
       let required_from_unit =
         t.cu_required_globals
         |> List.map Compilation_unit.to_global_ident_for_bytecode
@@ -48,21 +77,37 @@ module Bytecode = struct
       let required =
         required_from_unit
         @ Symtable.required_globals t.cu_reloc
+||||||| 121bedcfd2
+      let required =
+        t.cu_required_globals
+        @ Symtable.required_globals t.cu_reloc
+=======
+      let required =
+        t.cu_required_compunits
+        @ Symtable.required_compunits t.cu_reloc
+>>>>>>> ocaml/trunk
       in
       let required =
         List.filter
+<<<<<<< HEAD
           (fun id ->
              not (Ident.is_predef id)
              && not (String.contains (Ident.name id) '.'))
+||||||| 121bedcfd2
+          (fun id ->
+             not (String.contains (Ident.name id) '.'))
+=======
+          (fun cu -> not (Symtable.Compunit.is_packed cu))
+>>>>>>> ocaml/trunk
           required
       in
       List.map
-        (fun ident -> Ident.name ident, None)
+        (fun (Compunit cu) -> cu, None)
         required
 
     let defined_symbols (t : t) =
-      List.map (fun ident -> Ident.name ident)
-        (Symtable.defined_globals t.cu_reloc)
+      List.map (fun (Compunit cu) -> cu)
+        (Symtable.initialized_compunits t.cu_reloc)
 
     let unsafe_module (t : t) = t.cu_primitives <> []
   end
@@ -84,12 +129,13 @@ module Bytecode = struct
   let adapt_filename f = f
 
   let num_globals_inited () =
-    Misc.fatal_error "Should never be called for bytecode dynlink"
+    failwith "Should never be called for bytecode dynlink"
 
   let assume_no_prefix modname =
     Compilation_unit.create Compilation_unit.Prefix.empty modname
 
   let fold_initial_units ~init ~f =
+<<<<<<< HEAD
     Array.fold_left (fun acc import ->
         let modname = Import_info.name import in
         let crc = Import_info.crc import in
@@ -97,19 +143,40 @@ module Bytecode = struct
           Compilation_unit.to_global_ident_for_bytecode
             (assume_no_prefix modname)
         in
+||||||| 121bedcfd2
+    List.fold_left (fun acc (comp_unit, interface) ->
+        let id = Ident.create_persistent comp_unit in
+=======
+    List.fold_left (fun acc (compunit, interface) ->
+        let global =
+          Symtable.Global.Glob_compunit (Compunit compunit)
+        in
+>>>>>>> ocaml/trunk
         let defined =
-          Symtable.is_defined_in_global_map !default_global_map id
+          Symtable.is_defined_in_global_map !default_global_map global
         in
         let implementation =
           if defined then Some (None, DT.Loaded)
           else None
         in
         let defined_symbols =
+<<<<<<< HEAD
           if defined then [Ident.name id]
+||||||| 121bedcfd2
+          if defined then [comp_unit]
+=======
+          if defined then [compunit]
+>>>>>>> ocaml/trunk
           else []
         in
+<<<<<<< HEAD
         let comp_unit = modname |> Compilation_unit.Name.to_string in
         f acc ~comp_unit ~interface:crc ~implementation ~defined_symbols)
+||||||| 121bedcfd2
+        f acc ~comp_unit ~interface ~implementation ~defined_symbols)
+=======
+        f acc ~compunit ~interface ~implementation ~defined_symbols)
+>>>>>>> ocaml/trunk
       init
       !default_crcs
 
@@ -123,18 +190,34 @@ module Bytecode = struct
       Fun.protect f
         ~finally:(fun () -> Mutex.unlock lock)
 
+  let really_input_bigarray ic ar st n =
+    match In_channel.really_input_bigarray ic ar st n with
+      | None -> raise End_of_file
+      | Some () -> ()
+
+  type instruct_debug_event
+  external reify_bytecode :
+    (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t ->
+    instruct_debug_event list array -> string option ->
+    Obj.t * (unit -> Obj.t)
+    = "caml_reify_bytecode"
+
   let run lock (ic, file_name, file_digest) ~unit_header ~priv =
-    let open Misc in
     let clos = with_lock lock (fun () ->
         let old_state = Symtable.current_state () in
+<<<<<<< HEAD
         let compunit : Cmo_format.compilation_unit_descr = unit_header in
+||||||| 121bedcfd2
+        let compunit : Cmo_format.compilation_unit = unit_header in
+=======
+        let compunit : compilation_unit = unit_header in
+>>>>>>> ocaml/trunk
         seek_in ic compunit.cu_pos;
-        let code_size = compunit.cu_codesize + 8 in
-        let code = LongString.create code_size in
-        LongString.input_bytes_into code ic compunit.cu_codesize;
-        LongString.set code compunit.cu_codesize (Char.chr Opcodes.opRETURN);
-        LongString.blit_string "\000\000\000\001\000\000\000" 0
-          code (compunit.cu_codesize + 1) 7;
+        let code =
+          Bigarray.Array1.create Bigarray.Char Bigarray.c_layout
+            compunit.cu_codesize
+        in
+        really_input_bigarray ic code 0 compunit.cu_codesize;
         begin try
           Symtable.patch_object code compunit.cu_reloc;
           Symtable.check_global_initialized compunit.cu_reloc;
@@ -142,14 +225,18 @@ module Bytecode = struct
         with Symtable.Error error ->
           let new_error : DT.linking_error =
             match error with
-            | Symtable.Undefined_global s -> Undefined_global s
+            | Symtable.Undefined_global global ->
+              let desc = Symtable.Global.description in
+              Undefined_global (Format.asprintf "%a" desc global)
             | Symtable.Unavailable_primitive s -> Unavailable_primitive s
-            | Symtable.Uninitialized_global s -> Uninitialized_global s
+            | Symtable.Uninitialized_global global ->
+              Uninitialized_global (Symtable.Global.name global)
             | Symtable.Wrong_vm _ -> assert false
           in
           raise (DT.Error (Linking_error (file_name, new_error)))
         end;
         (* PR#5215: identify this code fragment by
+<<<<<<< HEAD
           digest of file contents + unit name.
           Unit name is needed for .cma files, which produce several code
           fragments. *)
@@ -157,14 +244,26 @@ module Bytecode = struct
           Digest.string
             (file_digest ^ Compilation_unit.full_path_as_string compunit.cu_name)
         in
+||||||| 121bedcfd2
+           digest of file contents + unit name.
+           Unit name is needed for .cma files, which produce several code
+           fragments. *)
+        let digest = Digest.string (file_digest ^ compunit.cu_name) in
+=======
+           digest of file contents + unit name.
+           Unit name is needed for .cma files, which produce several code
+           fragments. *)
+        let unit_name = Symtable.Compunit.name compunit.cu_name in
+        let digest = Digest.string (file_digest ^ unit_name) in
+>>>>>>> ocaml/trunk
         let events =
           if compunit.cu_debug = 0 then [| |]
           else begin
             seek_in ic compunit.cu_debug;
-            [| input_value ic |]
+            [| (Compression.input_value ic : instruct_debug_event list) |]
           end in
         if priv then Symtable.hide_additions old_state;
-        let _, clos = Meta.reify_bytecode code events (Some digest) in
+        let _, clos = reify_bytecode code events (Some digest) in
         clos
       )
     in
@@ -178,10 +277,13 @@ module Bytecode = struct
         (Printexc.get_raw_backtrace ())
 
   let load ~filename:file_name ~priv:_ =
-    let ic = open_in_bin file_name in
-    let file_digest = Digest.channel ic (-1) in
-    seek_in ic 0;
+    let ic =
+      try open_in_bin file_name
+      with exc -> raise (DT.Error (Cannot_open_dynamic_library exc))
+    in
     try
+      let file_digest = Digest.channel ic (-1) in
+      seek_in ic 0;
       let buffer =
         try really_input_string ic (String.length Config.cmo_magic_number)
         with End_of_file -> raise (DT.Error (Not_a_bytecode_file file_name))
@@ -190,32 +292,43 @@ module Bytecode = struct
       if buffer = Config.cmo_magic_number then begin
         let compunit_pos = input_binary_int ic in  (* Go to descriptor *)
         seek_in ic compunit_pos;
+<<<<<<< HEAD
         let cu = (input_value ic : Cmo_format.compilation_unit_descr) in
+||||||| 121bedcfd2
+        let cu = (input_value ic : Cmo_format.compilation_unit) in
+=======
+        let cu = (input_value ic : compilation_unit) in
+>>>>>>> ocaml/trunk
         handle, [cu]
       end else
       if buffer = Config.cma_magic_number then begin
         let toc_pos = input_binary_int ic in  (* Go to table of contents *)
         seek_in ic toc_pos;
-        let lib = (input_value ic : Cmo_format.library) in
-        begin try
-          Dll.open_dlls Dll.For_execution
-            (List.map Dll.extract_dll_name lib.lib_dllibs)
-        with exn ->
-          raise (DT.Error (Cannot_open_dynamic_library exn))
-        end;
+        let lib = (input_value ic : library) in
+        Symtable.open_dlls lib.lib_dllibs;
         handle, lib.lib_units
       end else begin
         raise (DT.Error (Not_a_bytecode_file file_name))
       end
-    with exc ->
-      close_in ic;
+    with
+    (* Wrap all exceptions into Cannot_open_dynamic_library errors except
+       Not_a_bytecode_file ones, as they bring all the necessary information
+       already
+       Use close_in_noerr since the exception we really want to raise is exc *)
+    | DT.Error _ as exc ->
+      close_in_noerr ic;
       raise exc
+    | exc ->
+      close_in_noerr ic;
+      raise (DT.Error (Cannot_open_dynamic_library exc))
 
   let register _handle _header ~priv:_ ~filename:_ = ()
 
   let unsafe_get_global_value ~bytecode_or_asm_symbol =
-    let id = Ident.create_persistent bytecode_or_asm_symbol in
-    match Symtable.get_global_value id with
+    let global =
+      Symtable.Global.Glob_compunit (Compunit bytecode_or_asm_symbol)
+    in
+    match Symtable.get_global_value global with
     | exception _ -> None
     | obj -> Some obj
 

@@ -20,7 +20,7 @@ open Types
 type position = First | Second
 
 val swap_position : position -> position
-val print_pos : Format.formatter -> position -> unit
+val print_pos : position Format_doc.printer
 
 type expanded_type = { ty: type_expr; expanded: type_expr }
 
@@ -84,6 +84,11 @@ type 'variety obj =
   (* Unification *)
   | Self_cannot_be_closed : unification obj
 
+type first_class_module =
+    | Package_cannot_scrape of Path.t
+    | Package_inclusion of Format_doc.doc
+    | Package_coercion of Format_doc.doc
+
 type ('a, 'variety) elt =
   (* Common *)
   | Diff : 'a diff -> ('a, _) elt
@@ -91,6 +96,7 @@ type ('a, 'variety) elt =
   | Obj : 'variety obj -> ('a, 'variety) elt
   | Escape : 'a escape -> ('a, _) elt
   | Incompatible_fields : { name:string; diff: type_expr diff } -> ('a, _) elt
+  | First_class_module: first_class_module -> ('a,_) elt
   (* Unification & Moregen; included in Equality for simplicity *)
   | Rec_occur : type_expr * type_expr -> ('a, _) elt
   | Bad_jkind : type_expr * Jkind.Violation.t -> ('a, _) elt

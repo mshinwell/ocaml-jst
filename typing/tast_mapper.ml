@@ -298,9 +298,17 @@ let pat
     match x.pat_desc with
     | Tpat_any
     | Tpat_constant _ -> x.pat_desc
+<<<<<<< HEAD
     | Tpat_var (id, s, uid, m) -> Tpat_var (id, map_loc sub s, uid, m)
     | Tpat_tuple l ->
         Tpat_tuple (List.map (fun (label, p) -> label, sub.pat sub p) l)
+||||||| 121bedcfd2
+    | Tpat_var (id, s) -> Tpat_var (id, map_loc sub s)
+    | Tpat_tuple l -> Tpat_tuple (List.map (sub.pat sub) l)
+=======
+    | Tpat_var (id, s, uid) -> Tpat_var (id, map_loc sub s, uid)
+    | Tpat_tuple l -> Tpat_tuple (List.map (sub.pat sub) l)
+>>>>>>> ocaml/trunk
     | Tpat_construct (loc, cd, l, vto) ->
         let vto = Option.map (fun (vl,cty) ->
           List.map (map_loc sub) vl, sub.typ sub cty) vto in
@@ -309,9 +317,18 @@ let pat
         Tpat_variant (l, Option.map (sub.pat sub) po, rd)
     | Tpat_record (l, closed) ->
         Tpat_record (List.map (tuple3 (map_loc sub) id (sub.pat sub)) l, closed)
+<<<<<<< HEAD
     | Tpat_array (am, arg_sort, l) -> Tpat_array (am, arg_sort, List.map (sub.pat sub) l)
     | Tpat_alias (p, id, s, uid, m) ->
         Tpat_alias (sub.pat sub p, id, map_loc sub s, uid, m)
+||||||| 121bedcfd2
+    | Tpat_array l -> Tpat_array (List.map (sub.pat sub) l)
+    | Tpat_alias (p, id, s) -> Tpat_alias (sub.pat sub p, id, map_loc sub s)
+=======
+    | Tpat_array l -> Tpat_array (List.map (sub.pat sub) l)
+    | Tpat_alias (p, id, s, uid) ->
+        Tpat_alias (sub.pat sub p, id, map_loc sub s, uid)
+>>>>>>> ocaml/trunk
     | Tpat_lazy p -> Tpat_lazy (sub.pat sub p)
     | Tpat_value p ->
        (as_computation_pattern (sub.pat sub (p :> pattern))).pat_desc
@@ -323,6 +340,7 @@ let pat
   let pat_attributes = sub.attributes sub x.pat_attributes in
   {x with pat_loc; pat_extra; pat_desc; pat_env; pat_attributes}
 
+<<<<<<< HEAD
 let function_param sub
     { fp_kind;
       fp_param;
@@ -343,7 +361,27 @@ let function_param sub
       let pat = sub.pat sub pat in
       let expr = sub.expr sub expr in
       Tparam_optional_default (pat, expr, sort)
+||||||| 121bedcfd2
+let expr sub x =
+  let extra = function
+    | Texp_constraint cty ->
+        Texp_constraint (sub.typ sub cty)
+    | Texp_coerce (cty1, cty2) ->
+        Texp_coerce (Option.map (sub.typ sub) cty1, sub.typ sub cty2)
+    | Texp_newtype _ as d -> d
+    | Texp_poly cto -> Texp_poly (Option.map (sub.typ sub) cto)
+=======
+let function_param sub fp =
+  let fp_kind =
+    match fp.fp_kind with
+    | Tparam_pat pat -> Tparam_pat (sub.pat sub pat)
+    | Tparam_optional_default (pat, expr) ->
+      let pat = sub.pat sub pat in
+      let expr = sub.expr sub expr in
+      Tparam_optional_default (pat, expr)
+>>>>>>> ocaml/trunk
   in
+<<<<<<< HEAD
   let fp_newtypes =
     List.map
       (fun (var, annot) ->
@@ -389,6 +427,41 @@ let function_body sub body =
 
 let expr sub x =
   let extra x = extra sub x in
+||||||| 121bedcfd2
+  let exp_loc = sub.location sub x.exp_loc in
+=======
+  let fp_loc = sub.location sub fp.fp_loc in
+  { fp_kind;
+    fp_param = fp.fp_param;
+    fp_arg_label = fp.fp_arg_label;
+    fp_partial = fp.fp_partial;
+    fp_newtypes = fp.fp_newtypes;
+    fp_loc;
+  }
+
+let extra sub = function
+  | Texp_constraint cty ->
+    Texp_constraint (sub.typ sub cty)
+  | Texp_coerce (cty1, cty2) ->
+    Texp_coerce (Option.map (sub.typ sub) cty1, sub.typ sub cty2)
+  | Texp_newtype _ as d -> d
+  | Texp_poly cto -> Texp_poly (Option.map (sub.typ sub) cto)
+
+let function_body sub body =
+  match body with
+  | Tfunction_body body ->
+      Tfunction_body (sub.expr sub body)
+  | Tfunction_cases { cases; partial; param; loc; exp_extra; attributes } ->
+      let loc = sub.location sub loc in
+      let cases = List.map (sub.case sub) cases in
+      let exp_extra = Option.map (extra sub) exp_extra in
+      let attributes = sub.attributes sub attributes in
+      Tfunction_cases { cases; partial; param; loc; exp_extra; attributes }
+
+let expr sub x =
+  let extra x = extra sub x in
+  let exp_loc = sub.location sub x.exp_loc in
+>>>>>>> ocaml/trunk
   let exp_extra = List.map (tuple3 extra (sub.location sub) id) x.exp_extra in
   let exp_loc = sub.location sub x.exp_loc in
   let exp_env = sub.env sub x.exp_env in
@@ -437,6 +510,7 @@ let expr sub x =
     | Texp_let (rec_flag, list, exp) ->
         let (rec_flag, list) = sub.value_bindings sub (rec_flag, list) in
         Texp_let (rec_flag, list, sub.expr sub exp)
+<<<<<<< HEAD
     | Texp_function { params; body; alloc_mode; region; ret_mode; ret_sort;
                       zero_alloc } ->
         let params = List.map (function_param sub) params in
@@ -444,6 +518,18 @@ let expr sub x =
         Texp_function { params; body; alloc_mode; region; ret_mode; ret_sort;
                         zero_alloc }
     | Texp_apply (exp, list, pos, am, za) ->
+||||||| 121bedcfd2
+    | Texp_function { arg_label; param; cases; partial; } ->
+        let cases = List.map (sub.case sub) cases in
+        Texp_function { arg_label; param; cases; partial; }
+    | Texp_apply (exp, list) ->
+=======
+    | Texp_function (params, body) ->
+        let params = List.map (function_param sub) params in
+        let body = function_body sub body in
+        Texp_function (params, body)
+    | Texp_apply (exp, list) ->
+>>>>>>> ocaml/trunk
         Texp_apply (
           sub.expr sub exp,
           List.map (function
@@ -452,17 +538,25 @@ let expr sub x =
             list,
           pos, am, za
         )
+<<<<<<< HEAD
     | Texp_match (exp, sort, cases, p) ->
+||||||| 121bedcfd2
+    | Texp_match (exp, cases, p) ->
+=======
+    | Texp_match (exp, cases, eff_cases, p) ->
+>>>>>>> ocaml/trunk
         Texp_match (
           sub.expr sub exp,
           sort,
           List.map (sub.case sub) cases,
+          List.map (sub.case sub) eff_cases,
           p
         )
-    | Texp_try (exp, cases) ->
+    | Texp_try (exp, exn_cases, eff_cases) ->
         Texp_try (
           sub.expr sub exp,
-          List.map (sub.case sub) cases
+          List.map (sub.case sub) exn_cases,
+          List.map (sub.case sub) eff_cases
         )
     | Texp_tuple (list, am) ->
         Texp_tuple (List.map (fun (label, e) -> label, sub.expr sub e) list, am)
@@ -898,6 +992,8 @@ let typ sub x =
         Ttyp_poly (List.map (var_jkind sub) vars, sub.typ sub ct)
     | Ttyp_package pack ->
         Ttyp_package (sub.package_type sub pack)
+    | Ttyp_open (path, mod_ident, t) ->
+        Ttyp_open (path, map_loc sub mod_ident, sub.typ sub t)
   in
   let ctyp_attributes = sub.attributes sub x.ctyp_attributes in
   {x with ctyp_loc; ctyp_desc; ctyp_env; ctyp_attributes}
@@ -959,11 +1055,12 @@ let value_bindings sub (rec_flag, list) =
 
 let case
   : type k . mapper -> k case -> k case
-  = fun sub {c_lhs; c_guard; c_rhs} ->
+  = fun sub {c_lhs; c_guard; c_rhs; c_cont} ->
   {
     c_lhs = sub.pat sub c_lhs;
     c_guard = Option.map (sub.expr sub) c_guard;
     c_rhs = sub.expr sub c_rhs;
+    c_cont
   }
 
 let value_binding sub x =
@@ -971,8 +1068,15 @@ let value_binding sub x =
   let vb_pat = sub.pat sub x.vb_pat in
   let vb_expr = sub.expr sub x.vb_expr in
   let vb_attributes = sub.attributes sub x.vb_attributes in
+<<<<<<< HEAD
   let vb_rec_kind = x.vb_rec_kind in
   {vb_loc; vb_pat; vb_expr; vb_attributes; vb_sort = x.vb_sort; vb_rec_kind}
+||||||| 121bedcfd2
+  {vb_loc; vb_pat; vb_expr; vb_attributes}
+=======
+  let vb_rec_kind = x.vb_rec_kind in
+  {vb_loc; vb_pat; vb_expr; vb_attributes; vb_rec_kind}
+>>>>>>> ocaml/trunk
 
 let env _sub x = x
 

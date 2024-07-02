@@ -95,10 +95,16 @@ type stat =
 
     stack_size: int;
     (** Current size of the stack, in words.
+<<<<<<< HEAD
 
         This metrics will not be available in the OCaml 5 runtime: the field
         value will always be [0].
 
+||||||| 121bedcfd2
+=======
+        This metrics is currently not available in OCaml 5: the field value is
+        always [0].
+>>>>>>> ocaml/trunk
         @since 3.12 *)
     (* CR ocaml 5 all-runtime5: Update the above comment to what it is upstream:
 
@@ -167,8 +173,6 @@ type control =
        compaction is triggered at the end of each major GC cycle
        (this setting is intended for testing purposes only).
        If [max_overhead >= 1000000], compaction is never triggered.
-       If compaction is permanently disabled, it is strongly suggested
-       to set [allocation_policy] to 2.
        Default: 500. *)
 
     stack_limit : int;
@@ -177,37 +181,16 @@ type control =
 
     allocation_policy : int;
     (** The policy used for allocating in the major heap.
-        Possible values are 0, 1 and 2.
 
-        - 0 is the next-fit policy, which is usually fast but can
-          result in fragmentation, increasing memory consumption.
+        This option is ignored in OCaml 5.x.
 
-        - 1 is the first-fit policy, which avoids fragmentation but
-          has corner cases (in certain realistic workloads) where it
-          is sensibly slower.
+        Prior to OCaml 5.0, possible values were 0, 1 and 2.
 
-        - 2 is the best-fit policy, which is fast and avoids
-          fragmentation. In our experiments it is faster and uses less
-          memory than both next-fit and first-fit.
-          (since OCaml 4.10)
+        - 0 was the next-fit policy
 
-        The default is best-fit.
+        - 1 was the first-fit policy (since OCaml 3.11)
 
-        On one example that was known to be bad for next-fit and first-fit,
-        next-fit takes 28s using 855Mio of memory,
-        first-fit takes 47s using 566Mio of memory,
-        best-fit takes 27s using 545Mio of memory.
-
-        Note: If you change to next-fit, you may need to reduce
-        the [space_overhead] setting, for example using [80] instead
-        of the default [120] which is tuned for best-fit. Otherwise,
-        your program will need more memory.
-
-        Note: changing the allocation policy at run-time forces
-        a heap compaction, which is a lengthy operation unless the
-        heap is small (e.g. at the start of the program).
-
-        Default: 2.
+        - 2 was the best-fit policy (since OCaml 4.10)
 
         @since 3.11 *)
 
@@ -243,13 +226,11 @@ type control =
 
     custom_minor_max_size : int;
     (** Maximum amount of out-of-heap memory for each custom value
-        allocated in the minor heap. When a custom value is allocated
-        on the minor heap and holds more than this many bytes, only
-        this value is counted against [custom_minor_ratio] and the
-        rest is directly counted against [custom_major_ratio].
+        allocated in the minor heap. Custom values that hold more
+        than this many bytes are allocated on the major heap.
         Note: this only applies to values allocated with
         [caml_alloc_custom_mem] (e.g. bigarrays).
-        Default: 8192 bytes.
+        Default: 70000 bytes.
         @since 4.08 *)
   }
 (** The GC parameters are given as a [control] record.  Note that
@@ -266,9 +247,9 @@ external quick_stat : unit -> stat = "caml_gc_quick_stat"
 (** Same as [stat] except that [live_words], [live_blocks], [free_words],
     [free_blocks], [largest_free], and [fragments] are set to 0. Due to
     per-domain buffers it may only represent the state of the program's
-    total memory usage since the last minor collection. This function is
-    much faster than [stat] because it does not need to trigger a full
-    major collection. *)
+    total memory usage since the last minor collection or major cycle.
+    This function is much faster than [stat] because it does not need to
+    trigger a full major collection. *)
 
 external counters : unit -> float * float * float = "caml_gc_counters"
 (** Return [(minor_words, promoted_words, major_words)] for the current
@@ -424,15 +405,36 @@ val finalise_release : unit -> unit
 
 type alarm
 (** An alarm is a piece of data that calls a user function at the end of
-   each major GC cycle.  The following functions are provided to create
+   major GC cycle.  The following functions are provided to create
    and delete alarms. *)
 
 val create_alarm : (unit -> unit) -> alarm
-(** [create_alarm f] will arrange for [f] to be called at the end of each
-   major GC cycle, not caused by [f] itself, starting with the current
-   cycle or the next one.
-   A value of type [alarm] is returned that you can
-   use to call [delete_alarm]. *)
+(** [create_alarm f] will arrange for [f] to be called at the end of
+   major GC cycles, not caused by [f] itself, starting with the
+   current cycle or the next one. [f] will run on the same domain that
+   created the alarm, until the domain exits or [delete_alarm] is
+   called. A value of type [alarm] is returned that you can use to
+   call [delete_alarm].
+
+   It is not guaranteed that the Gc alarm runs at the end of every major
+   GC cycle, but it is guaranteed that it will run eventually.
+
+   As an example, here is a crude way to interrupt a function if the
+   memory consumption of the program exceeds a given [limit] in MB,
+   suitable for use in the toplevel:
+
+   {[
+let run_with_memory_limit (limit : int) (f : unit -> 'a) : 'a =
+  let limit_memory () =
+    let mem = Gc.(quick_stat ()).heap_words in
+    if mem / (1024 * 1024) > limit / (Sys.word_size / 8) then
+      raise Out_of_memory
+  in
+  let alarm = Gc.create_alarm limit_memory in
+  Fun.protect f ~finally:(fun () -> Gc.delete_alarm alarm ; Gc.compact ())
+   ]}
+
+*)
 
 val delete_alarm : alarm -> unit
 (** [delete_alarm a] will stop the calls to the function associated

@@ -20,6 +20,9 @@
   (* Ensure that record patterns don't miss any field. *)
 *)
 
+[@@@ocaml.warning "-60"] module Str = Ast_helper.Str (* For ocamldep *)
+[@@@ocaml.warning "+60"]
+
 open Parsetree
 open Ast_helper
 open Location
@@ -45,6 +48,7 @@ type mapper = {
   constant: mapper -> constant -> constant;
   constructor_declaration: mapper -> constructor_declaration
                            -> constructor_declaration;
+  directive_argument: mapper -> directive_argument -> directive_argument;
   expr: mapper -> expression -> expression;
   extension: mapper -> extension -> extension;
   extension_constructor: mapper -> extension_constructor
@@ -70,6 +74,8 @@ type mapper = {
   signature_item: mapper -> signature_item -> signature_item;
   structure: mapper -> structure -> structure;
   structure_item: mapper -> structure_item -> structure_item;
+  toplevel_directive: mapper -> toplevel_directive -> toplevel_directive;
+  toplevel_phrase: mapper -> toplevel_phrase -> toplevel_phrase;
   typ: mapper -> core_type -> core_type;
   type_declaration: mapper -> type_declaration -> type_declaration;
   type_extension: mapper -> type_extension -> type_extension;
@@ -123,14 +129,18 @@ let map_mode_and_attributes sub attrs =
 module C = struct
   (* Constants *)
 
-  let map sub c = match c with
-    | Pconst_integer _
-    | Pconst_char _
-    | Pconst_float _
-      -> c
-    | Pconst_string (s, loc, quotation_delimiter) ->
-        let loc = sub.location sub loc in
-        Const.string ~loc ?quotation_delimiter s
+  let map sub { pconst_desc; pconst_loc } =
+    let loc = sub.location sub pconst_loc in
+    let desc =
+      match pconst_desc with
+      | Pconst_integer _
+      | Pconst_char _
+      | Pconst_float _ ->
+          pconst_desc
+      | Pconst_string (s, loc, quotation_delimiter) ->
+          Pconst_string (s, sub.location sub loc, quotation_delimiter)
+    in
+    Const.mk ~loc desc
 end
 
 module T = struct
@@ -221,7 +231,9 @@ module T = struct
         object_ ~loc ~attrs (List.map (object_field sub) l) o
     | Ptyp_class (lid, tl) ->
         class_ ~loc ~attrs (map_loc sub lid) (List.map (sub.typ sub) tl)
-    | Ptyp_alias (t, s) -> alias ~loc ~attrs (sub.typ sub t) s
+    | Ptyp_alias (t, s) ->
+        let s = map_loc sub s in
+        alias ~loc ~attrs (sub.typ sub t) s
     | Ptyp_variant (rl, b, ll) ->
         variant ~loc ~attrs (List.map (row_field sub) rl) b ll
     | Ptyp_poly (sl, t) -> poly ~loc ~attrs
@@ -229,6 +241,8 @@ module T = struct
     | Ptyp_package (lid, l) ->
         package ~loc ~attrs (map_loc sub lid)
           (List.map (map_tuple (map_loc sub) (sub.typ sub)) l)
+    | Ptyp_open (mod_ident, t) ->
+        open_ ~loc ~attrs (map_loc sub mod_ident) (sub.typ sub t)
     | Ptyp_extension x -> extension ~loc ~attrs (sub.extension sub x)
 
   let map_type_declaration sub
@@ -580,6 +594,7 @@ end
 module E = struct
   (* Value expressions for the core language *)
 
+<<<<<<< HEAD
   module C = Jane_syntax.Comprehensions
   module IA = Jane_syntax.Immutable_arrays
   module L = Jane_syntax.Layouts
@@ -694,6 +709,40 @@ module E = struct
 
   let map sub
         ({pexp_loc = loc; pexp_desc = desc; pexp_attributes = attrs} as exp) =
+||||||| 121bedcfd2
+  let map sub {pexp_loc = loc; pexp_desc = desc; pexp_attributes = attrs} =
+=======
+  let map_function_param sub { pparam_loc = loc; pparam_desc = desc } =
+    let loc = sub.location sub loc in
+    let desc =
+      match desc with
+      | Pparam_val (lab, def, p) ->
+          Pparam_val
+            (lab,
+             map_opt (sub.expr sub) def,
+             sub.pat sub p)
+      | Pparam_newtype ty ->
+          Pparam_newtype (map_loc sub ty)
+    in
+    { pparam_loc = loc; pparam_desc = desc }
+
+  let map_function_body sub body =
+    match body with
+    | Pfunction_body e ->
+        Pfunction_body (sub.expr sub e)
+    | Pfunction_cases (cases, loc, attributes) ->
+        let cases = sub.cases sub cases in
+        let loc = sub.location sub loc in
+        let attributes = sub.attributes sub attributes in
+        Pfunction_cases (cases, loc, attributes)
+
+  let map_constraint sub c =
+    match c with
+    | Pconstraint ty -> Pconstraint (sub.typ sub ty)
+    | Pcoerce (ty1, ty2) -> Pcoerce (map_opt (sub.typ sub) ty1, sub.typ sub ty2)
+
+  let map sub {pexp_loc = loc; pexp_desc = desc; pexp_attributes = attrs} =
+>>>>>>> ocaml/trunk
     let open Exp in
     let loc = sub.location sub loc in
     match Jane_syntax.Expression.of_ast exp with
@@ -710,12 +759,25 @@ module E = struct
     | Pexp_let (r, vbs, e) ->
         let_ ~loc ~attrs r (List.map (sub.value_binding sub) vbs)
           (sub.expr sub e)
+<<<<<<< HEAD
     | Pexp_fun (lab, def, p, e) ->
         (fun_ ~loc ~attrs lab (map_opt (sub.expr sub) def) (sub.pat sub p)
           (sub.expr sub e) [@alert "-prefer_jane_syntax"])
     | Pexp_function pel ->
         (function_ ~loc ~attrs (sub.cases sub pel)
            [@alert "-prefer_jane_syntax"])
+||||||| 121bedcfd2
+    | Pexp_fun (lab, def, p, e) ->
+        fun_ ~loc ~attrs lab (map_opt (sub.expr sub) def) (sub.pat sub p)
+          (sub.expr sub e)
+    | Pexp_function pel -> function_ ~loc ~attrs (sub.cases sub pel)
+=======
+    | Pexp_function (ps, c, b) ->
+      function_ ~loc ~attrs
+        (List.map (map_function_param sub) ps)
+        (map_opt (map_constraint sub) c)
+        (map_function_body sub b)
+>>>>>>> ocaml/trunk
     | Pexp_apply (e, l) ->
         apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.expr sub)) l)
     | Pexp_match (e, pel) ->
@@ -856,6 +918,8 @@ module P = struct
     | Ppat_unpack s -> unpack ~loc ~attrs (map_loc sub s)
     | Ppat_open (lid,p) -> open_ ~loc ~attrs (map_loc sub lid) (sub.pat sub p)
     | Ppat_exception p -> exception_ ~loc ~attrs (sub.pat sub p)
+    | Ppat_effect(p1, p2) ->
+        effect_ ~loc ~attrs (sub.pat sub p1) (sub.pat sub p2)
     | Ppat_extension x -> extension ~loc ~attrs (sub.extension sub x)
 end
 
@@ -1125,6 +1189,7 @@ let default_mapper =
          | PTyp x -> PTyp (this.typ this x)
          | PPat (x, g) -> PPat (this.pat this x, map_opt (this.expr this) g)
       );
+<<<<<<< HEAD
 
     jkind_annotation = (fun this ->
       let open Jane_syntax in
@@ -1159,26 +1224,45 @@ let default_mapper =
           Const.mk txt loc
       in
       map_loc_txt this (fun sub -> List.map (map_const sub)) m);
+||||||| 121bedcfd2
+=======
+
+    directive_argument =
+      (fun this a ->
+         { pdira_desc= a.pdira_desc
+         ; pdira_loc= this.location this a.pdira_loc} );
+
+    toplevel_directive =
+      (fun this d ->
+         { pdir_name= map_loc this d.pdir_name
+         ; pdir_arg= map_opt (this.directive_argument this) d.pdir_arg
+         ; pdir_loc= this.location this d.pdir_loc } );
+
+    toplevel_phrase =
+      (fun this -> function
+         | Ptop_def s -> Ptop_def (this.structure this s)
+         | Ptop_dir d -> Ptop_dir (this.toplevel_directive this d) );
+>>>>>>> ocaml/trunk
   }
 
 let extension_of_error {kind; main; sub} =
   if kind <> Location.Report_error then
     raise (Invalid_argument "extension_of_error: expected kind Report_error");
-  let str_of_pp pp_msg = Format.asprintf "%t" pp_msg in
+  let str_of_msg msg = Format.asprintf "%a" Format_doc.Doc.format msg in
   let extension_of_sub sub =
     { loc = sub.loc; txt = "ocaml.error" },
     PStr ([Str.eval (Exp.constant
-                       (Pconst_string (str_of_pp sub.txt, sub.loc, None)))])
+                       (Const.string ~loc:sub.loc (str_of_msg sub.txt)))])
   in
   { loc = main.loc; txt = "ocaml.error" },
   PStr (Str.eval (Exp.constant
-                    (Pconst_string (str_of_pp main.txt, main.loc, None))) ::
+                    (Const.string ~loc:main.loc (str_of_msg main.txt))) ::
         List.map (fun msg -> Str.extension (extension_of_sub msg)) sub)
 
 let attribute_of_warning loc s =
   Attr.mk
     {loc; txt = "ocaml.ppwarning" }
-    (PStr ([Str.eval ~loc (Exp.constant (Pconst_string (s, loc, None)))]))
+    (PStr ([Str.eval ~loc (Exp.constant (Const.string ~loc s))]))
 
 let cookies = ref String.Map.empty
 
@@ -1271,7 +1355,8 @@ module PpxContext = struct
   let restore fields =
     let field name payload =
       let rec get_string = function
-        | { pexp_desc = Pexp_constant (Pconst_string (str, _, None)) } -> str
+        | {pexp_desc = Pexp_constant
+               {pconst_desc = Pconst_string (str, _, None); _}} -> str
         | _ -> raise_errorf "Internal error: invalid [@@@ocaml.ppx.context \
                              { %s }] string syntax" name
       and get_bool pexp =

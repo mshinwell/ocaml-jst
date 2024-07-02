@@ -50,13 +50,24 @@ type out_value =
   | Oval_int64 of int64
   | Oval_nativeint of nativeint
   | Oval_list of out_value list
-  | Oval_printer of (Format.formatter -> unit)
+  | Oval_printer of (Format_doc.formatter -> unit)
   | Oval_record of (out_ident * out_value) list
   | Oval_string of string * int * out_string (* string, size-to-print, kind *)
   | Oval_stuff of string
   | Oval_tuple of (string option * out_value) list
   | Oval_variant of string * out_value option
+  | Oval_lazy of out_value
 
+<<<<<<< HEAD
+||||||| 121bedcfd2
+type out_type_param = string * (Asttypes.variance * Asttypes.injectivity)
+=======
+type out_type_param = {
+    ot_non_gen: bool;
+    ot_name: string;
+    ot_variance: Asttypes.variance * Asttypes.injectivity
+}
+>>>>>>> ocaml/trunk
 
 type out_modality_legacy = Ogf_global
 
@@ -129,9 +140,15 @@ and out_type =
   | Otyp_abstract
   | Otyp_open
   | Otyp_alias of {non_gen:bool; aliased:out_type; alias:string}
+<<<<<<< HEAD
   | Otyp_arrow of arg_label * out_arg_mode * out_type * out_ret_mode * out_type
   (* INVARIANT: the [out_ret_mode] is [Orm_not_arrow] unless the RHS [out_type]
     is [Otyp_arrow] *)
+||||||| 121bedcfd2
+  | Otyp_arrow of string * out_type * out_type
+=======
+  | Otyp_arrow of Asttypes.arg_label * out_type * out_type
+>>>>>>> ocaml/trunk
   | Otyp_class of out_ident * out_type list
   | Otyp_constr of out_ident * out_type list
   | Otyp_manifest of out_type * out_type
@@ -161,7 +178,13 @@ and out_variant =
 
 type out_class_type =
   | Octy_constr of out_ident * out_type list
+<<<<<<< HEAD
   | Octy_arrow of arg_label * out_type * out_class_type
+||||||| 121bedcfd2
+  | Octy_arrow of string * out_type * out_class_type
+=======
+  | Octy_arrow of Asttypes.arg_label * out_type * out_class_type
+>>>>>>> ocaml/trunk
   | Octy_signature of out_type option * out_class_sig_item list
 and out_class_sig_item =
   | Ocsg_constraint of out_type * out_type

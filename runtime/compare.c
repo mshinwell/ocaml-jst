@@ -49,11 +49,7 @@ static void compare_free_stack(struct compare_stack* stk)
 }
 
 /* Same, then raise Out_of_memory */
-CAMLnoreturn_start
-static void compare_stack_overflow(struct compare_stack* stk)
-CAMLnoreturn_end;
-
-static void compare_stack_overflow(struct compare_stack* stk)
+CAMLnoret static void compare_stack_overflow(struct compare_stack* stk)
 {
   caml_gc_message (0x04, "Stack overflow in structural comparison\n");
   compare_free_stack(stk);
@@ -103,18 +99,17 @@ static intnat compare_val(value v1, value v2, int total)
 static void run_pending_actions(struct compare_stack* stk,
                                 struct compare_item* sp)
 {
-  value exn;
+  caml_result result;
   value* roots_start = (value*)(stk->stack);
   size_t roots_length =
     (sp - stk->stack)
     * sizeof(struct compare_item) / sizeof(value);
   Begin_roots_block(roots_start, roots_length);
-  exn = caml_do_pending_actions_exn();
+  result = caml_do_pending_actions_res();
   End_roots();
-  if (Is_exception_result(exn)) {
-    exn = Extract_exception(exn);
+  if (caml_result_is_exception(result)) {
     compare_free_stack(stk);
-    caml_raise(exn);
+    (void) caml_get_value_or_raise(result);;
   }
 }
 
@@ -124,7 +119,7 @@ static void run_pending_actions(struct compare_stack* stk,
 #define LESS -1
 #define EQUAL 0
 #define GREATER 1
-#define UNORDERED ((intnat)1 << (8 * sizeof(value) - 1))
+#define UNORDERED CAML_INTNAT_MIN
 
 /* The return value of compare_val is as follows:
       > 0                 v1 is greater than v2
@@ -164,7 +159,7 @@ static intnat do_compare_val(struct compare_stack* stk,
             if (res != 0) return res;
             goto next_item;
           }
-          default: /*fallthrough*/;
+          default: break;
           }
 
         return LESS;                /* v1 long < v2 block */
@@ -185,7 +180,7 @@ static intnat do_compare_val(struct compare_stack* stk,
             if (res != 0) return res;
             goto next_item;
           }
-          default: /*fallthrough*/;
+          default: break;
           }
         return GREATER;            /* v1 block > v2 long */
       }

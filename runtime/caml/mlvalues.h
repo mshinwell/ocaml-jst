@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "misc.h"
+#include "tsan.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,12 +84,41 @@ typedef opcode_t * code_t;
 #define Unsigned_long_val(x) ((uintnat)(x) >> 1)
 #define Unsigned_int_val(x)  ((int) Unsigned_long_val(x))
 
-/* Encoded exceptional return values, when functions are suffixed with
-   _exn. Encoded exceptions are invalid values and must not be seen
-   by the garbage collector. */
-#define Make_exception_result(v) ((v) | 2)
-#define Is_exception_result(v) (((v) & 3) == 2)
-#define Extract_exception(v) ((v) & ~3)
+/* A 'result' type for OCaml computations. */
+
+/* The [caml_result] type represents the result of computing an OCaml
+   term -- either a value or an exception.
+
+   This plays a similar role to the [('a, exn) result] type in OCaml,
+   with a different representation. Returning this type, instead of
+   raising exceptions directly, lets the caller implement proper
+   cleanup and propagate the exception themselves.
+*/
+typedef struct caml_result_private caml_result;
+
+/* This structure should be considered internal, its definition may
+   change in the future. Its public interface is formed of
+   - Result_value, Result_exception
+   - caml_result_is_exception
+   - caml_get_value_or_raise (in fail.h)
+*/
+struct caml_result_private {
+  int is_exception;
+  value data;
+};
+
+#define Result_value(v) \
+  (struct caml_result_private){ .is_exception = 0, .data = v }
+#define Result_exception(exn) \
+  (struct caml_result_private){ .is_exception = 1, .data = exn }
+
+Caml_inline int caml_result_is_exception(struct caml_result_private result)
+{
+  return result.is_exception;
+}
+
+#define Result_unit Result_value(Val_unit)
+
 
 /* Structure of the header:
 
@@ -235,18 +265,20 @@ Caml_inline mlsize_t Scannable_wosize_reserved_byte(reserved_t res,
 #define Hd_with_color(hd, color) (((hd) &~ HEADER_COLOR_MASK) | (color))
 
 #define Hp_atomic_val(val) ((atomic_uintnat *)(val) - 1)
-#define Hd_val(val) ((header_t) \
-  (atomic_load_explicit(Hp_atomic_val(val), memory_order_relaxed)))
+CAMLno_tsan_for_perf Caml_inline header_t Hd_val(value val)
+{
+  return atomic_load_explicit(Hp_atomic_val(val), memory_order_relaxed);
+}
 
 #define Color_val(val) (Color_hd (Hd_val (val)))
 
-#define Hd_hp(hp) (* ((header_t *) (hp)))              /* Also an l-value. */
-#define Hp_val(val) (((header_t *) (val)) - 1)
+#define Hd_hp(hp) (* ((volatile header_t *) (hp)))      /* Also an l-value. */
+#define Hp_val(val) (((volatile header_t *) (val)) - 1)
 #define Hp_op(op) (Hp_val (op))
 #define Hp_bp(bp) (Hp_val (bp))
 #define Val_op(op) ((value) (op))
 #define Val_hp(hp) ((value) (((header_t *) (hp)) + 1))
-#define Op_hp(hp) ((value *) Val_hp (hp))
+#define Op_hp(hp) ((volatile value *) Val_hp (hp))
 #define Bp_hp(hp) ((char *) Val_hp (hp))
 
 #define Num_tags (1ull << HEADER_TAG_BITS)
@@ -316,7 +348,13 @@ Caml_inline mlsize_t Scannable_wosize_reserved_byte(reserved_t res,
 #define Tag_hp(hp) (((volatile unsigned char *) (hp)) [sizeof(value)-1])
                                                  /* Also an l-value. */
 #else
+<<<<<<< HEAD
 #define Tag_val(val) (((volatile unsigned char *) (val)) [-sizeof(value)])
+||||||| 121bedcfd2
+#define Tag_val(val) (((unsigned char *) (val)) [-sizeof(value)])
+=======
+#define Tag_val(val) (((volatile unsigned char *) (val)) [- (int)sizeof(value)])
+>>>>>>> ocaml/trunk
                                                  /* Also an l-value. */
 #define Tag_hp(hp) (((volatile unsigned char *) (hp)) [0])
                                                  /* Also an l-value. */
@@ -344,7 +382,7 @@ Caml_inline mlsize_t Scannable_wosize_reserved_byte(reserved_t res,
 
 /* NOTE: [Forward_tag] and [Infix_tag] must be just under
    [No_scan_tag], with [Infix_tag] the lower one.
-   See [caml_oldify_one] in minor_gc.c for more details.
+   See [oldify_one] in minor_gc.c for more details.
 
    NOTE: Update stdlib/obj.ml whenever you change the tags.
  */
@@ -368,12 +406,16 @@ Caml_inline mlsize_t Scannable_wosize_reserved_byte(reserved_t res,
 #define Object_tag 248
 #define Class_val(val) Field((val), 0)
 #define Oid_val(val) Long_val(Field((val), 1))
+/* Allow the bytecode linker to include mlvalues.h without the primitive
+   declarations. */
+#ifndef CAML_INTERNALS_NO_PRIM_DECLARATIONS
 CAMLextern value caml_get_public_method (value obj, value tag);
 /* Called as:
    caml_callback(caml_get_public_method(obj, caml_hash_variant(name)), obj) */
 /* caml_get_public_method returns 0 if tag not in the table.
    Note however that tags being hashed, same tag does not necessarily mean
    same method name. */
+#endif
 
 Caml_inline value Val_ptr(void* p)
 {
@@ -474,7 +516,7 @@ CAMLextern void caml_Store_double_val (value,double);
 
 /* The [_flat_field] macros are for [floatarray] values and float-only records.
 */
-#define Double_flat_field(v,i) Double_val((value)((double *)(v) + (i)))
+#define Double_flat_field(v,i) Double_val((value)((volatile double *)(v) + (i)))
 #define Store_double_flat_field(v,i,d) do{ \
   mlsize_t caml__temp_i = (i); \
   double caml__temp_d = (d); \
@@ -545,7 +587,11 @@ CAMLextern value caml_atom(tag_t);
 /* Booleans are integers 0 or 1 */
 
 #define Val_bool(x) Val_int((x) != 0)
+#ifdef __cplusplus
+#define Bool_val(x) ((bool) Int_val(x))
+#else
 #define Bool_val(x) Int_val(x)
+#endif
 #define Val_false Val_int(0)
 #define Val_true Val_int(1)
 #define Val_not(x) (Val_false + Val_true - (x))
@@ -566,7 +612,11 @@ CAMLextern value caml_atom(tag_t);
 #define Is_none(v) ((v) == Val_none)
 #define Is_some(v) Is_block(v)
 
+/* Allow the bytecode linker to include mlvalues.h without the primitive
+   declarations. */
+#ifndef CAML_INTERNALS_NO_PRIM_DECLARATIONS
 CAMLextern value caml_set_oo_id(value obj);
+#endif
 
 /* Users write this to assert that the ensuing C code is sensitive
    to the current layout of mixed blocks in a way that's subject
@@ -595,6 +645,21 @@ CAMLextern value caml_set_oo_id(value obj);
 
 #define Caml_out_of_heap_header(wosize, tag)                           \
         Caml_out_of_heap_header_with_reserved(wosize, tag, 0)
+
+
+/* Obsolete -- suppport for unsafe encoded exceptions.
+
+   Before caml_result was available, we used an unsafe encoding of it
+   into the 'value' type, where encoded exceptions have their second
+   bit set. These encoded exceptions are invalid values and must not
+   be seen by the garbage collector. This is unsafe, and the
+   C type-checker does not help. We strongly recommend using the
+   caml_result type above instead. It is GC-safe and more
+   type-safe. */
+
+#define Make_exception_result(v) ((v) | 2)
+#define Is_exception_result(v) (((v) & 3) == 2)
+#define Extract_exception(v) ((v) & ~3)
 
 #ifdef __cplusplus
 }

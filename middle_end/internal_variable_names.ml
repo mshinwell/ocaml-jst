@@ -201,6 +201,7 @@ let pperform = "Pperform"
 let presume = "Presume"
 let preperform = "Preperform"
 let pdls_get = "Pdls_get"
+let ppoll = "Ppoll"
 
 let pabsfloat_arg = "Pabsfloat_arg"
 let paddbint_arg = "Paddbint_arg"
@@ -336,6 +337,7 @@ let pperform_arg = "Pperform_arg"
 let presume_arg = "Presume_arg"
 let preperform_arg = "Preperform_arg"
 let pdls_get_arg = "Pdls_get_arg"
+let ppoll_arg = "Ppoll_arg"
 
 let pfloatarray_load_128 = "Pfloatarray_load_128"
 let pfloat_array_load_128 = "Pfloat_array_load_128"
@@ -565,6 +567,7 @@ let of_primitive : Lambda.primitive -> string = function
   | Presume -> presume
   | Preperform -> preperform
   | Pdls_get -> pdls_get
+  | Ppoll -> ppoll
 
 let of_primitive_arg : Lambda.primitive -> string = function
   | Pbytes_of_string -> pbytes_of_string_arg
@@ -720,3 +723,4 @@ let of_primitive_arg : Lambda.primitive -> string = function
   | Presume -> presume_arg
   | Preperform -> preperform_arg
   | Pdls_get -> pdls_get_arg
+  | Ppoll -> ppoll_arg

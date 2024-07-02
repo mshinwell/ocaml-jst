@@ -85,7 +85,8 @@ module Doc = struct
 
   let get_doc lst attrs = match find_attr lst attrs with
     | Some { attr_payload = PStr [{pstr_desc=Pstr_eval(
-        {pexp_desc=Pexp_constant(Pconst_string (doc, _,_));_}, _);_}]}
+        {pexp_desc=Pexp_constant
+             {pconst_desc=Pconst_string (doc, _,_)};_}, _);_}]}
       when doc <> "/*" && doc <> "" -> Some doc
     | _ -> None
 
@@ -196,8 +197,7 @@ module Ast = struct
   let parse_file ~orig ~f ~init input =
     try
       let id =
-        orig |> Filename.chop_extension |> Filename.basename |>
-        String.capitalize_ascii |> Ident.create_persistent in
+        orig |> Unit_info.modname_from_source |> Ident.create_persistent in
       let ast = Pparse.file ~tool_name:"lintapidiff" input
           Parse.interface Pparse.Signature in
       Location.input_name := orig;

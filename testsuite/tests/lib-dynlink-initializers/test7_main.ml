@@ -1,4 +1,5 @@
 (* TEST
+<<<<<<< HEAD
  include dynlink;
  readonly_files = "test7_interface_only.mli test7_plugin.ml";
  libraries = "";
@@ -43,6 +44,90 @@
      run;
    }
  }
+||||||| 121bedcfd2
+
+include dynlink
+
+readonly_files = "test7_interface_only.mli test7_plugin.ml"
+
+libraries = ""
+
+* shared-libraries
+** setup-ocamlc.byte-build-env
+*** ocamlc.byte
+module = "test7_interface_only.mli"
+*** ocamlc.byte
+module = "test7_main.ml"
+*** ocamlc.byte
+module = "test7_plugin.ml"
+*** ocamlc.byte
+program = "${test_build_directory}/test7.byte"
+libraries = "dynlink"
+all_modules = "test7_main.cmo"
+**** run
+
+** native-dynlink
+*** setup-ocamlopt.byte-build-env
+**** ocamlopt.byte
+module = "test7_interface_only.mli"
+**** ocamlopt.byte
+module = "test7_main.ml"
+**** ocamlopt.byte
+program = "test7_plugin.cmxs"
+flags = "-shared"
+all_modules = "test7_plugin.ml"
+**** ocamlopt.byte
+program = "${test_build_directory}/test7.exe"
+libraries = "dynlink"
+all_modules = "test7_main.cmx"
+***** run
+=======
+ include dynlink;
+ readonly_files = "test7_interface_only.mli test7_plugin.ml";
+ libraries = "";
+ shared-libraries;
+ {
+   setup-ocamlc.byte-build-env;
+
+   module = "test7_interface_only.mli";
+   ocamlc.byte;
+
+   module = "test7_main.ml";
+   ocamlc.byte;
+
+   module = "test7_plugin.ml";
+   ocamlc.byte;
+
+   unset module;
+   program = "${test_build_directory}/test7.byte";
+   libraries = "dynlink";
+   all_modules = "test7_main.cmo";
+   ocamlc.byte;
+   run;
+ }{
+   native-dynlink;
+   setup-ocamlopt.byte-build-env;
+
+   module = "test7_interface_only.mli";
+   ocamlopt.byte;
+
+   module = "test7_main.ml";
+   ocamlopt.byte;
+
+   unset module;
+   program = "test7_plugin.cmxs";
+   flags = "-shared";
+   all_modules = "test7_plugin.ml";
+   ocamlopt.byte;
+
+   program = "${test_build_directory}/test7.exe";
+   unset flags;
+   libraries = "dynlink";
+   all_modules = "test7_main.cmx";
+   ocamlopt.byte;
+   run;
+ }
+>>>>>>> ocaml/trunk
 *)
 
 (* Check that a shared library can depend on an interface-only module

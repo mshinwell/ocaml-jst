@@ -176,6 +176,7 @@ and operation =
   | Copaque
   | Cbeginregion | Cendregion
   | Cdls_get
+  | Cpoll
 
 type kind_for_unboxing =
   | Any
@@ -208,9 +209,16 @@ type expression =
         * expression * kind_for_unboxing
   | Cexit of int * expression list
   | Ctrywith of expression * Backend_var.With_provenance.t * expression
+<<<<<<< HEAD
       * Debuginfo.t * kind_for_unboxing
   | Cregion of expression
   | Cexclave of expression
+||||||| 121bedcfd2
+      * Debuginfo.t
+=======
+      * Debuginfo.t
+  | Creturn_addr
+>>>>>>> ocaml/trunk
 
 type codegen_option =
   | Reduce_code_size
@@ -282,7 +290,8 @@ let iter_shallow_tail f = function
   | Cvar _
   | Cassign _
   | Ctuple _
-  | Cop _ ->
+  | Cop _
+  | Creturn_addr ->
       false
 
 let map_shallow_tail ?kind f = function
@@ -324,6 +333,7 @@ let map_shallow_tail ?kind f = function
   | Cvar _
   | Cassign _
   | Ctuple _
+<<<<<<< HEAD
   | Cop _ as cmm -> cmm
 
 let map_tail ?kind f =
@@ -379,6 +389,14 @@ let iter_shallow f = function
   | Cconst_symbol _
   | Cvar _ ->
       ()
+||||||| 121bedcfd2
+  | Cop _ as c ->
+      f c
+=======
+  | Creturn_addr
+  | Cop _ as c ->
+      f c
+>>>>>>> ocaml/trunk
 
 let map_shallow f = function
   | Clet (id, e1, e2) ->
@@ -415,5 +433,6 @@ let map_shallow f = function
   | Cconst_float _
   | Cconst_symbol _
   | Cvar _
+  | Creturn_addr
     as c ->
       c

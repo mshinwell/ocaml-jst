@@ -52,6 +52,7 @@ extern void caml_memprof_sample_young(uintnat wosize, int from_caml,
 
 /* Suspend or unsuspend sampling (for the current thread). */
 
+<<<<<<< HEAD
 extern void caml_memprof_update_suspended(_Bool);
 
 
@@ -148,6 +149,107 @@ CAMLextern void caml_memprof_enter_thread(memprof_thread_t);
 /* Notify memprof that the given thread is being deleted. */
 
 CAMLextern void caml_memprof_delete_thread(memprof_thread_t);
+||||||| 121bedcfd2
+/* This hook is not modified after other domains are spawned. */
+extern void (*caml_memprof_th_ctx_iter_hook)(th_ctx_action, void*);
+=======
+extern void caml_memprof_update_suspended(_Bool);
+
+
+/*** GC interface ***/
+
+/* Apply `f(fdata, r, &r)` to each GC root `r` within memprof data
+ * structures for the domain `state`.
+ *
+ * `fflags` is used to decide whether to only scan roots which may
+ * point to minor heaps (the `SCANNING_ONLY_YOUNG_VALUES` flag).
+ *
+ * If `weak` is false then only scan strong roots. If `weak`
+ * is true then also scan weak roots.
+ *
+ * If `global` is false then only scan roots for `state`. If `global`
+ * is true then also scan roots shared between all domains. */
+
+extern void caml_memprof_scan_roots(scanning_action f,
+                                    scanning_action_flags fflags,
+                                    void* fdata,
+                                    caml_domain_state *state,
+                                    _Bool weak,
+                                    _Bool global);
+
+/* Update memprof data structures for the domain `state`, to reflect
+ * survival and promotion, after a minor GC is completed.
+ *
+ * If `global` is false then only update structures for `state`. If
+ * `global` is true then also update structures shared between all
+ * domains. */
+
+extern void caml_memprof_after_minor_gc(caml_domain_state *state, _Bool global);
+
+/* Update memprof data structures for the domain `state`, to reflect
+ * survival, after a minor GC is completed.
+ *
+ * If `global` is false then only update structures for `state`. If
+ * `global` is true then also update structures shared between all
+ * domains. */
+
+extern void caml_memprof_after_major_gc(caml_domain_state *state, _Bool global);
+
+/* Freshly computes state->memprof_young_trigger. *Does not* set the
+ * young limit. */
+
+extern void caml_memprof_set_trigger(caml_domain_state *state);
+
+/*** Callbacks ***/
+
+/* Run any pending callbacks for the current domain (or adopted from a
+ * terminated domain). */
+
+extern caml_result caml_memprof_run_callbacks_res(void);
+
+
+/*** Multi-domain support. ***/
+
+/* Notify memprof of the creation of a new domain `domain`. If there
+ * was an existing domain (from which to inherit profiling behaviour),
+ * it is passed in `parent`. Called before the new domain allocates
+ * anything, and before the parent domain continues. Also creates
+ * memprof thread state for the initial thread of the domain. */
+
+extern void caml_memprof_new_domain(caml_domain_state *parent,
+                                    caml_domain_state *domain);
+
+/* Notify memprof that the domain `domain` is terminating. Called
+ * after the last allocation by the domain. */
+
+extern void caml_memprof_delete_domain(caml_domain_state *domain);
+
+
+/*** Multi-thread support ***/
+
+/* Opaque type of memprof state for a single thread. */
+
+typedef struct memprof_thread_s *memprof_thread_t;
+
+/* Notify memprof that a new thread is being created. Returns a
+ * pointer to memprof state for the new thread. */
+
+CAMLextern memprof_thread_t caml_memprof_new_thread(caml_domain_state *domain);
+
+/* Obtain the memprof state for the initial thread of a domain. Called
+ * when there is only one such thread. */
+
+CAMLextern memprof_thread_t caml_memprof_main_thread(caml_domain_state *domain);
+
+/* Notify memprof that the current domain is switching to the given
+ * thread. */
+
+CAMLextern void caml_memprof_enter_thread(memprof_thread_t);
+
+/* Notify memprof that the given thread is being deleted. */
+
+CAMLextern void caml_memprof_delete_thread(memprof_thread_t);
+>>>>>>> ocaml/trunk
 
 #endif
 
