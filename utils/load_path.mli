@@ -40,28 +40,6 @@ module Dir : sig
   val basenames : t -> string list
   (** All the files in that directory. This doesn't include files in
       sub-directories of this directory. *)
-<<<<<<< HEAD
-||||||| 121bedcfd2
-
-  val find : t -> string -> string option
-  (** [find dir fn] returns the full path to [fn] in [dir]. *)
-
-  val find_uncap : t -> string -> string option
-  (** As {!find}, but search also for uncapitalized name, i.e. if name is
-      Foo.ml, either /path/Foo.ml or /path/foo.ml may be returned. *)
-=======
-
-  val hidden : t -> bool
-  (** If the modules in this directory should not be bound in the initial
-      scope *)
-
-  val find : t -> string -> string option
-  (** [find dir fn] returns the full path to [fn] in [dir]. *)
-
-  val find_normalized : t -> string -> string option
-  (** As {!find}, but search also for uncapitalized name, i.e. if name is
-      Foo.ml, either /path/Foo.ml or /path/foo.ml may be returned. *)
->>>>>>> 5.2.0
 end
 
 type auto_include_callback =
@@ -112,6 +90,12 @@ type visibility = Visible | Hidden
 val find_normalized_with_visibility : string -> string * visibility
 (** Same as [find_normalized], but also reports whether the cmi was found in a
     -I directory (Visible) or a -H directory (Hidden) *)
+
+type visibility = Visible | Hidden
+
+val find_uncap_with_visibility : string -> string * visibility
+(** Same as [find_uncap], but also reports whether the cmi was found in a -I
+    directory (Visible) or a -H directory (Hidden) *)
 
 type visibility = Visible | Hidden
 

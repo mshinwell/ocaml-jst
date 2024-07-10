@@ -32,13 +32,30 @@ let basename_chop_extensions basename  =
   | dot_pos -> String.sub basename 0 dot_pos
   | exception Not_found -> basename
 
-let modulize s = String.capitalize_ascii s
+let modulize basename =
+  let name =
+    try
+      (* For hidden files (i.e., those starting with '.'), include the initial
+         '.' in the module name rather than let it be empty. It's still not a
+         /good/ module name, but at least it's not rejected out of hand by
+         [Compilation_unit.Name.of_string]. *)
+      let pos = String.index_from basename 1 '.' in
+      String.sub basename 0 pos
+    with Not_found -> basename
+  in
+  String.capitalize_ascii name
 
 (* We re-export the [Misc] definition *)
 let normalize = Misc.normalized_unit_filename
 
 let modname_from_source source_file =
   source_file |> Filename.basename |> basename_chop_extensions |> modulize
+
+let module_of_filename inputfile outputprefix =
+  let basename = Filename.basename outputprefix in
+  let name = String.capitalize_ascii name in
+  check_unit_name inputfile name;
+  name
 
 let start_char = function
   | 'A' .. 'Z' -> true
