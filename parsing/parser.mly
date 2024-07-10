@@ -281,7 +281,7 @@ let mkexp_type_constraint ?(ghost=false) ~loc e t =
 
 let mkexp_opt_type_constraint ~loc e = function
   | None -> e
-  | Some c -> mkexp_constraint ~loc e c
+  | Some c -> mkexp_type_constraint ~loc e c
 
 let mkpat_opt_constraint ~loc p = function
   | None -> p
@@ -556,11 +556,6 @@ let pat_of_label lbl =
 
 let mk_newtypes ~loc newtypes exp =
   let mk_one (name, jkind) exp =
-    (* Mints a ghost location that approximates the newtype's "extent" as
-    being from the start of the newtype param until the end of the
-    function body.
-     *)
-    let loc = (newtype_loc.Location.loc_start, body.pexp_loc.loc_end) in
     match jkind with
     | None -> ghexp ~loc (Pexp_newtype (name, exp))
     | Some jkind ->
@@ -2585,8 +2580,8 @@ class_type_declarations:
            typechecking. For standalone function cases, we want the compiler to
            respect, e.g., [@inline] attributes.
         *)
-        let desc = mkfunction [] None (Pfunction_cases (cases, loc, [])) in
-        mkexp_attrs ~loc:$sloc desc $2
+        mkfunction [] None (Pfunction_cases (cases, loc, []))
+          ~loc:$sloc ~attrs:$2
       }
 ;
 
@@ -4262,7 +4257,7 @@ alias_type:
     function_type
       { $1 }
   | mktyp(
-      ty = alias_type AS tyvar = typevar
+      ty = alias_type AS QUOTE tyvar = mkrhs(ident)
         { Ptyp_alias(ty, tyvar) }
    )
    { $1 }
