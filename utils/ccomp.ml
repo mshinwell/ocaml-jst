@@ -117,6 +117,8 @@ let compile_file ?output ?(opt="") ?stable_name name =
             (List.map (Misc.expand_directory Config.standard_library)
                (List.rev (  !Clflags.hidden_include_dirs
                           @ !Clflags.include_dirs))))
+               (List.rev (  !Clflags.hidden_include_dirs
+                          @ !Clflags.include_dirs))))
          (Clflags.std_include_flag "-I")
          (Filename.quote name)
          (* cl tediously includes the name of the C file as the first thing it
@@ -200,17 +202,10 @@ let call_linker ?(native_toplevel = false) mode output_name files extra =
           )
           (Filename.quote output_name)
           ""  (*(Clflags.std_include_flag "-I")*)
-<<<<<<< HEAD
           (if native_toplevel then ""
            else
              quote_prefixed ~response_files:true "-L"
                (Load_path.get_path_list ()))
-||||||| 121bedcfd2
-          (quote_prefixed ~response_files:true "-L" (Load_path.get_paths ()))
-=======
-          (quote_prefixed ~response_files:true "-L"
-             (Load_path.get_path_list ()))
->>>>>>> 5.2.0
           (String.concat " " (List.rev !Clflags.all_ccopts))
           (quote_files ~response_files:true files)
           extra

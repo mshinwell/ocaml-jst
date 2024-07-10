@@ -112,19 +112,11 @@ type existential_restriction =
   | In_class_def (** or in [class c = let ... in ...] *)
   | In_self_pattern (** or in self pattern *)
 
-<<<<<<< HEAD
 type module_patterns_restriction =
   | Modules_allowed of { scope: int }
   | Modules_rejected
   | Modules_ignored
 
-||||||| 121bedcfd2
-type module_patterns_restriction =
-  | Modules_allowed of { scope : int }
-  | Modules_rejected
-
-=======
->>>>>>> 5.2.0
 val type_binding:
         Env.t -> rec_flag ->
           ?force_toplevel:bool ->

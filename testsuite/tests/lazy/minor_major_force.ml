@@ -1,12 +1,6 @@
 (* TEST
-<<<<<<< HEAD
  ocamlopt_flags += " -O3 ";
  runtime5;
-||||||| 121bedcfd2
-   ocamlopt_flags += " -O3 "
-=======
- ocamlopt_flags += " -O3 ";
->>>>>>> 5.2.0
 *)
 
 (*

@@ -611,20 +611,10 @@ let report_error ppf = function
         (Style.as_inline_code Location.print_filename) file
   | Illegal_renaming(name, file, id) ->
       fprintf ppf "Wrong file naming: %a@ contains the code for\
-<<<<<<< HEAD
-                   @ %a when %s was expected"
-        Location.print_filename file
-        Compilation_unit.Name.print name
-        id
-||||||| 121bedcfd2
-                   @ %s when %s was expected"
-        Location.print_filename file name id
-=======
                    @ %a when %a was expected"
         (Style.as_inline_code Location.print_filename) file
-        Style.inline_code (Compunit.name name)
+        Style.inline_code (Compilation_unit.Name.print name)
         Style.inline_code (Compunit.name id)
->>>>>>> 5.2.0
   | File_not_found file ->
       fprintf ppf "File %a not found"
         Style.inline_code file
