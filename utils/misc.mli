@@ -157,12 +157,6 @@ module Stdlib : sig
         elements, except for possibly the last list, which may have fewer.
         [chunks_of] raises if [n <= 0]. *)
 
-    val chunks_of : int -> 'a t -> 'a t t
-    (** [chunks_of n t] returns a list of nonempty lists whose
-        concatenation is equal to the original list. Every list has [n]
-        elements, except for possibly the last list, which may have fewer.
-        [chunks_of] raises if [n <= 0]. *)
-
     val is_prefix
        : equal:('a -> 'a -> bool)
       -> 'a list

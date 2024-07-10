@@ -95,7 +95,8 @@
       (run cat %{input-file})))
     parser)))
  (library_flags -linkall)
- (libraries flambda2_floats)
+ ;; CR nroberts: (5.2 merge) add this back in as needed
+ ;; (libraries flambda2_floats)
  (modules_without_implementation
   annot
   value_rec_types
