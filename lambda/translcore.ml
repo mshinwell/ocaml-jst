@@ -1246,12 +1246,9 @@ and transl_apply ~scopes
      The following code guarantees that:
      * arguments are evaluated right-to-left according to their order in
        the type of the function, before the function is called;
-     * side-effects occurring after receiving a non-optional parameter
+     * side-effects occurring after receiving a parameter
        will occur exactly when all the arguments up to this parameter
-       have been received;
-     * side-effects occurring after receiving an optional parameter
-       will occur at the latest when all the arguments up to the first
-       non-optional parameter that follows it have been received.
+       have been received.
   *)
   let rec build_apply lam args loc pos ap_mode = function
     | Omitted { mode_closure; mode_arg; mode_ret; sort_arg } :: l ->
@@ -1709,8 +1706,6 @@ and transl_let ~scopes ~return_layout ?(add_regions=false) ?(in_structure=false)
         List.map
           (fun {vb_pat=pat} -> match pat.pat_desc with
               Tpat_var (id,_,_,_) -> id
-            | Tpat_alias ({pat_desc=Tpat_any}, id,_,_) -> id
-            (* XXX mshinwell: do we want this [Tpat_alias] case? *)
             | _ -> assert false)
         pat_expr_list in
       let transl_case
