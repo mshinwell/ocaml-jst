@@ -33,18 +33,11 @@ let expunge_map tbl =
   Symtable.filter_global_map keep tbl
 
 let expunge_crcs tbl =
-<<<<<<< HEAD
   Array.to_list tbl
   |> List.filter
     (fun import ->
       keep (Import_info.name import |> Compilation_unit.Name.to_string))
   |> Array.of_list
-||||||| 121bedcfd2
-  List.filter (fun (unit, _crc) -> keep unit) tbl
-=======
-  List.filter (fun (compunit, _crc) ->
-    keep (Symtable.Global.Glob_compunit (Cmo_format.Compunit compunit))) tbl
->>>>>>> 5.2.0
 
 let main () =
   let input_name = Sys.argv.(1) in

@@ -53,26 +53,6 @@ module EvalBase = struct
       raise (Undefined_global name)
 
   let eval_ident id =
-<<<<<<< HEAD
-    let name = Translmod.toplevel_name id in
-    try
-      String.Map.find name !toplevel_value_bindings
-    with Not_found ->
-      raise (Undefined_global name)
-||||||| 121bedcfd2
-    if Ident.persistent id || Ident.global id then begin
-      try
-        Symtable.get_global_value id
-      with Symtable.Error (Undefined_global name) ->
-        raise (Undefined_global name)
-    end else begin
-      let name = Translmod.toplevel_name id in
-      try
-        String.Map.find name !toplevel_value_bindings
-      with Not_found ->
-        raise (Undefined_global name)
-    end
-=======
     if Ident.global id then begin
       let name = Ident.name id in
       let global =
@@ -91,7 +71,6 @@ module EvalBase = struct
       with Not_found ->
         raise (Undefined_global name)
     end
->>>>>>> 5.2.0
 
 end
 

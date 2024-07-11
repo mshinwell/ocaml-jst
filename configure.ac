@@ -303,7 +303,7 @@ AS_IF([test "x$enable_runtime5" = "xyes"],
   ],
   [ AC_CONFIG_HEADERS([runtime4/caml/m.h])
     AC_CONFIG_HEADERS([runtime4/caml/s.h])
-    AC_CONFIG_HEADERS([runtime4/caml/exec.h])
+    AC_CONFIG_HEADERS([runtime/caml/exec.h])
     AC_CONFIG_HEADERS([runtime4/caml/version.h])
   ]
 )
