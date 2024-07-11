@@ -787,7 +787,7 @@ static void * caml_thread_start(void * v)
 
 static st_retcode create_tick_thread(void)
 {
-  if (Tick_thread_running) return 0;
+  if (Tick_thread_disabled || Tick_thread_running) return 0;
 
 #ifdef POSIX_SIGNALS
   sigset_t mask, old_mask;
@@ -811,20 +811,12 @@ static st_retcode create_tick_thread(void)
   return 0;
 }
 
-static st_retcode start_tick_thread(void)
-{
-  if (Tick_thread_running) return 0;
-  st_retcode err = create_tick_thread();
-  if (err == 0) Tick_thread_running = 1;
-  return err;
-}
-
 CAMLprim value caml_enable_tick_thread(value v_enable)
 {
   int enable = Long_val(v_enable) ? 1 : 0;
 
   if (enable) {
-    st_retcode err = start_tick_thread();
+    st_retcode err = create_tick_thread();
     sync_check_error(err, "caml_enable_tick_thread");
   } else {
     stop_tick_thread();
@@ -862,11 +854,6 @@ CAMLprim value caml_thread_new(value clos)
     sync_check_error(err, "Thread.create");
   }
 
-  if (! Tick_thread_running) {
-    err = create_tick_thread();
-    sync_check_error(err, "Thread.create");
-    Tick_thread_running = 1;
-  }
   CAMLreturn(th->descr);
 }
 
@@ -881,6 +868,11 @@ CAMLexport int caml_c_thread_register(void)
   if (!threads_initialized) return 0;
   /* Already registered? */
   if (This_thread != NULL) return 0;
+
+  /* At this point we should not hold any domain lock */
+  struct caml_locking_scheme *s = atomic_load(&Locking_scheme(Dom_c_threads));
+  if (s->thread_start != NULL)
+    s->thread_start(s->context, Thread_type_c_registered);
 
   CAMLassert(Caml_state_opt == NULL);
 
@@ -900,11 +892,21 @@ CAMLexport int caml_c_thread_register(void)
   /* We can now allocate the thread descriptor on the major heap */
   th->descr = caml_thread_new_descriptor(Val_unit);  /* no closure */
 
-  if (! Tick_thread_running) {
+  if (!Tick_thread_disabled && ! Tick_thread_running) {
     st_retcode err = create_tick_thread();
     sync_check_error(err, "caml_register_c_thread");
-    Tick_thread_running = 1;
   }
+
+  /* Release the domain lock the regular way. Note: we cannot receive
+     an exception here. */
+  caml_enter_blocking_section_no_pending();
+  return 1;
+
+out_err:
+  /* Note: we cannot raise an exception here. */
+  thread_lock_release(Dom_c_threads);
+  return 0;
+}
 
   /* Release the master lock */
   thread_lock_release(Dom_c_threads);
@@ -917,18 +919,16 @@ CAMLexport int caml_c_thread_register(void)
 /* the thread lock is not held when entering */
 CAMLexport int caml_c_thread_unregister(void)
 {
-  caml_thread_t th = This_thread;
-
-  /* If this thread is not set, then it was not registered */
-  if (th == NULL) return 0;
-  /* Wait until the runtime is available */
-  thread_lock_acquire(Dom_c_threads);
-  /*  Forget the thread descriptor */
-  st_tls_set(caml_thread_key, NULL);
-  /* Remove thread info block from list of threads, and free it */
-  caml_thread_remove_and_free(th);
-  /* Release the runtime */
-  thread_lock_release(Dom_c_threads);
+  /* If [This_thread] is not set, then the thread was not registered */
+  if (This_thread == NULL) return 0;
+  /* Acquire the domain lock the regular way */
+  caml_leave_blocking_section();
+  /* Detach thread from the OCaml runtime; note that this resets
+     [Caml_state_opt] and [This_thread]. */
+  thread_detach_from_runtime();
+  struct caml_locking_scheme *s = atomic_load(&Locking_scheme(Dom_c_threads));
+  if (s->thread_stop != NULL)
+    s->thread_stop(s->context, Thread_type_c_registered);
   return 1;
 }
 
@@ -963,9 +963,14 @@ CAMLprim value caml_thread_uncaught_exception(value exn)
 
 static void thread_yield(void)
 {
+  struct caml_locking_scheme *s;
+  s = atomic_load(&Locking_scheme(Caml_state->id));
+  if (s->can_skip_yield != NULL && s -> can_skip_yield(s->context))
+    return;
+
   st_masterlock *m = Thread_lock(Caml_state->id);
   if (st_masterlock_waiters(m) == 0)
-    return Val_unit;
+    return;
 
   /* Do all the parts of a blocking section enter&leave except lock
      manipulation, which we will do more efficiently in
@@ -975,7 +980,6 @@ static void thread_yield(void)
      not contain anything interesting, do not bother saving errno.)
   */
 
-  caml_raise_if_exception(caml_process_pending_signals_exn());
   save_runtime_state();
   s->yield(s->context);
   if (atomic_load(&Locking_scheme(Caml_state->id)) != s) {
@@ -984,8 +988,16 @@ static void thread_yield(void)
     thread_lock_acquire(Caml_state->id);
   }
   restore_runtime_state(This_thread);
-  caml_raise_if_exception(caml_process_pending_signals_exn());
 
+  /* Switching threads might have unmasked some signal. */
+  if (caml_check_pending_signals())
+    caml_set_action_pending(Caml_state);
+}
+
+CAMLprim value caml_thread_yield(value unit)
+{
+  caml_process_pending_actions();
+  thread_yield();
   return Val_unit;
 }
 
