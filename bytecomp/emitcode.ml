@@ -159,21 +159,17 @@ let enter info =
 let slot_for_literal sc =
   enter (Reloc_literal (Symtable.transl_const sc));
   out_int 0
-and slot_for_getglobal id =
-  let name = Ident.name id in
-  let reloc_info =
-    if Ident.is_predef id then (Reloc_getpredef (Predef_exn name))
-    else if Ident.global id then (Reloc_getcompunit (Compunit name))
-    else assert false
-  in
+and slot_for_getglobal cu =
+  let reloc_info = Reloc_getcompunit cu in
   enter reloc_info;
   out_int 0
-and slot_for_setglobal id =
+and slot_for_getpredef id =
   let name = Ident.name id in
-  let reloc_info =
-    if Ident.persistent id then (Reloc_setcompunit (Compunit name))
-    else assert false
-  in
+  let reloc_info = Reloc_getpredef (Predef_exn name) in
+  enter reloc_info;
+  out_int 0
+and slot_for_setglobal cu =
+  let reloc_info = Reloc_setcompunit cu in
   enter reloc_info;
   out_int 0
 and slot_for_c_prim name =
@@ -255,8 +251,9 @@ let emit_instr = function
       if ofs = -3 || ofs = 0 || ofs = 3
       then out (opOFFSETCLOSURE0 + ofs / 3)
       else (out opOFFSETCLOSURE; out_int ofs)
-  | Kgetglobal q -> out opGETGLOBAL; slot_for_getglobal q
-  | Ksetglobal q -> out opSETGLOBAL; slot_for_setglobal q
+  | Kgetglobal cu -> out opGETGLOBAL; slot_for_getglobal cu
+  | Ksetglobal cu -> out opSETGLOBAL; slot_for_setglobal cu
+  | Kgetpredef id -> out opGETGLOBAL; slot_for_getpredef id
   | Kconst sc ->
       begin match sc with
         Const_base(Const_int i) when is_immed i ->
@@ -427,7 +424,7 @@ let rec emit = function
 
 (* Emission to a file *)
 
-let to_file outchan artifact_info ~required_globals code =
+let to_file outchan cu artifact_info ~required_globals code =
   init();
   Fun.protect ~finally:clear (fun () ->
   output_string outchan cmo_magic_number;
@@ -457,14 +454,14 @@ let to_file outchan artifact_info ~required_globals code =
     end else
       (0, 0) in
   let compunit =
-    { cu_name = Cmo_format.Compunit (Unit_info.Artifact.modname artifact_info);
+    { cu_name = cu;
       cu_pos = pos_code;
       cu_codesize = !out_position;
       cu_reloc = List.rev !reloc_info;
       cu_imports = Env.imports() |> Array.of_list;
       cu_primitives = List.map Primitive.byte_name
                                !Translmod.primitive_declarations;
-      cu_required_globals = Compilation_unit.Set.elements required_globals;
+      cu_required_compunits = Compilation_unit.Set.elements required_globals;
       cu_force_link = !Clflags.link_everything;
       cu_debug = pos_debug;
       cu_debugsize = size_debug } in

@@ -395,11 +395,9 @@ let array_primitive (index_kind : Lambda.array_index_kind) prefix =
 let comp_primitive stack_info p sz args =
   check_stack stack_info sz;
   match p with
-    Pgetglobal cu ->
-      Kgetglobal (cu |> Compilation_unit.to_global_ident_for_bytecode)
-  | Psetglobal cu ->
-      Ksetglobal (cu |> Compilation_unit.to_global_ident_for_bytecode)
-  | Pgetpredef id -> Kgetglobal id
+    Pgetglobal cu -> Kgetglobal cu
+  | Psetglobal cu -> Ksetglobal cu
+  | Pgetpredef id -> Kgetpredef id
   | Pintcomp cmp -> Kintcomp cmp
   | Pcompare_ints -> Kccall("caml_int_compare", 2)
   | Pcompare_floats Pfloat64 -> Kccall("caml_float_compare", 2)
