@@ -443,26 +443,16 @@ let to_file outchan artifact_info ~required_globals code =
           (Filename.dirname (Location.absolute_path filename))
         !debug_dirs;
       let p = pos_out outchan in
-<<<<<<< HEAD
       (* CR ocaml 5 compressed-marshal mshinwell:
          Compression not supported in the OCaml 4 runtime
-      Marshal.(to_channel outchan !events [Compression]);
-      Marshal.(to_channel outchan (String.Set.elements !debug_dirs)
-                          [Compression]);
+      Compression.output_value outchan !events;
+      Compression.output_value outchan (String.Set.elements !debug_dirs);
       *)
 (* BACKPORT BEGIN *)
       Marshal.(to_channel outchan !events []);
       Marshal.(to_channel outchan (String.Set.elements !debug_dirs)
                           []);
 (* BACKPORT END *)
-||||||| 121bedcfd2
-      Marshal.(to_channel outchan !events [Compression]);
-      Marshal.(to_channel outchan (String.Set.elements !debug_dirs)
-                          [Compression]);
-=======
-      Compression.output_value outchan !events;
-      Compression.output_value outchan (String.Set.elements !debug_dirs);
->>>>>>> 5.2.0
       (p, pos_out outchan - p)
     end else
       (0, 0) in
@@ -474,14 +464,7 @@ let to_file outchan artifact_info ~required_globals code =
       cu_imports = Env.imports() |> Array.of_list;
       cu_primitives = List.map Primitive.byte_name
                                !Translmod.primitive_declarations;
-<<<<<<< HEAD
       cu_required_globals = Compilation_unit.Set.elements required_globals;
-||||||| 121bedcfd2
-      cu_required_globals = Ident.Set.elements required_globals;
-=======
-      cu_required_compunits = List.map (fun id -> Compunit (Ident.name id))
-        (Ident.Set.elements required_globals);
->>>>>>> 5.2.0
       cu_force_link = !Clflags.link_everything;
       cu_debug = pos_debug;
       cu_debugsize = size_debug } in

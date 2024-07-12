@@ -175,35 +175,19 @@ let output_primitive_table outchan =
   for i = 0 to Array.length prim - 1 do
     fprintf outchan "extern value %s(void);\n" prim.(i)
   done;
-<<<<<<< HEAD
-  fprintf outchan "typedef value (*c_primitive)(void);\n";
-  fprintf outchan "const c_primitive caml_builtin_cprim[] = {\n";
-||||||| 121bedcfd2
-  fprintf outchan "typedef value (*primitive)();\n";
-  fprintf outchan "primitive caml_builtin_cprim[] = {\n";
-=======
   fprintf outchan "typedef value (*c_primitive)(void);\n";
   fprintf outchan "#if defined __cplusplus\n";
   fprintf outchan "extern\n";
   fprintf outchan "#endif\n";
   fprintf outchan "const c_primitive caml_builtin_cprim[] = {\n";
->>>>>>> 5.2.0
   for i = 0 to Array.length prim - 1 do
     fprintf outchan "  %s,\n" prim.(i)
   done;
-<<<<<<< HEAD
-  fprintf outchan "  0 };\n";
-  fprintf outchan "const char * const caml_names_of_builtin_cprim[] = {\n";
-||||||| 121bedcfd2
-  fprintf outchan "  (primitive) 0 };\n";
-  fprintf outchan "const char * caml_names_of_builtin_cprim[] = {\n";
-=======
   fprintf outchan "  0 };\n";
   fprintf outchan "#if defined __cplusplus\n";
   fprintf outchan "extern\n";
   fprintf outchan "#endif\n";
   fprintf outchan "const char * const caml_names_of_builtin_cprim[] = {\n";
->>>>>>> 5.2.0
   for i = 0 to Array.length prim - 1 do
     fprintf outchan "  \"%s\",\n" prim.(i)
   done;
@@ -357,7 +341,7 @@ let update_global_table () =
 
 type bytecode_sections =
   { symb: GlobalMap.t;
-    crcs: (string * Digest.t option) list;
+    crcs: Import_info.t array;
     prim: string list;
     dlpt: string list }
 
@@ -367,68 +351,12 @@ external get_bytecode_sections : unit -> bytecode_sections =
 (* Initialize the linker for toplevel use *)
 
 let init_toplevel () =
-<<<<<<< HEAD
-  try
-    let sect = read_sections () in
-    (* Locations of globals *)
-    global_table :=
-      (Obj.magic (sect.read_struct Bytesections.Name.SYMB) : GlobalMap.t);
-    (* Primitives *)
-    let prims =
-      Misc.split_null_terminated (sect.read_string Bytesections.Name.PRIM) in
-    c_prim_table := PrimMap.empty;
-    List.iter set_prim_table prims;
-    (* DLL initialization *)
-    let dllpaths =
-      try Misc.split_null_terminated (sect.read_string Bytesections.Name.DLPT)
-      with Not_found -> [] in
-    Dll.init_toplevel dllpaths;
-    (* Recover CRC infos for interfaces *)
-    let crcintfs =
-      try
-        (Obj.magic (sect.read_struct Bytesections.Name.CRCS)
-         : Import_info.t array)
-      with Not_found -> [| |] in
-    (* Done *)
-    sect.close_reader();
-    crcintfs
-  with Bytesections.Bad_magic_number | Not_found | Failure _ ->
-    fatal_error "Toplevel bytecode executable is corrupted"
-||||||| 121bedcfd2
-  try
-    let sect = read_sections () in
-    (* Locations of globals *)
-    global_table :=
-      (Obj.magic (sect.read_struct Bytesections.Name.SYMB) : GlobalMap.t);
-    (* Primitives *)
-    let prims =
-      Misc.split_null_terminated (sect.read_string Bytesections.Name.PRIM) in
-    c_prim_table := PrimMap.empty;
-    List.iter set_prim_table prims;
-    (* DLL initialization *)
-    let dllpaths =
-      try Misc.split_null_terminated (sect.read_string Bytesections.Name.DLPT)
-      with Not_found -> [] in
-    Dll.init_toplevel dllpaths;
-    (* Recover CRC infos for interfaces *)
-    let crcintfs =
-      try
-        (Obj.magic (sect.read_struct Bytesections.Name.CRCS)
-         : (string * Digest.t option) list)
-      with Not_found -> [] in
-    (* Done *)
-    sect.close_reader();
-    crcintfs
-  with Bytesections.Bad_magic_number | Not_found | Failure _ ->
-    fatal_error "Toplevel bytecode executable is corrupted"
-=======
   let sect = get_bytecode_sections () in
   global_table := sect.symb;
   c_prim_table := PrimMap.empty;
   List.iter set_prim_table sect.prim;
   Dll.init_toplevel sect.dlpt;
   sect.crcs
->>>>>>> 5.2.0
 
 (* Find the value of a global identifier *)
 
