@@ -135,24 +135,24 @@ dune_targets=$(
 #     echo _build/default/.ocamlcommon.objs/native/$cmx.cmx
 #   done
 # )
-#
-# # ocamlbytecomp mls
-# mls=$(
-#   { echo driver/{errors,compile,maindriver}.ml
-#     echo bytecomp/{bytegen,bytelibrarian,bytelink,bytepackager}.ml
-#     echo bytecomp/{emitcode,printinstr,instruct}.ml
-#   } |
-#     tr ' ' '\n'
-# )
-# echo "$mls"
-# dune_targets=$(
-#   echo $dune_targets
-#   for ml in $mls; do
-#     cmx=$(basename ${ml%.ml})
-#     echo _build/default/.ocamlbytecomp.objs/native/$cmx.cmx
-#   done
-# )
-#
+
+# ocamlbytecomp mls
+mls=$(
+  { echo driver/{errors,compile,maindriver}.ml
+    echo bytecomp/{bytegen,bytelibrarian,bytelink,bytepackager}.ml
+    echo bytecomp/{emitcode,printinstr,instruct}.ml
+  } |
+    tr ' ' '\n'
+)
+echo "$mls"
+dune_targets=$(
+  echo $dune_targets
+  for ml in $mls; do
+    cmx=$(basename ${ml%.ml})
+    echo _build/default/.ocamlbytecomp.objs/native/$cmx.cmx
+  done
+)
+
 # # toplevel
 # dune_targets=$(
 #   echo "$dune_targets"
