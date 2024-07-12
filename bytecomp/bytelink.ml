@@ -19,13 +19,13 @@ open Misc
 open Config
 open Cmo_format
 
-module Compunit = Symtable.Compunit
-
 module CU = Compilation_unit
 
 module Dep = struct
-  type t = compunit * compunit
-  let compare = compare
+  type t = CU.t * CU.t
+  let compare (cu1, cu2) (cu1', cu2') =
+    let c = CU.compare cu1 cu1' in
+    if c <> 0 then c else CU.compare cu2 cu2'
 end
 
 module DepSet = Set.Make (Dep)
@@ -35,14 +35,14 @@ type error =
   | Not_an_object_file of filepath
   | Wrong_object_name of filepath
   | Symbol_error of filepath * Symtable.error
-  | Inconsistent_import of Compilation_unit.Name.t * filepath * filepath
+  | Inconsistent_import of CU.Name.t * filepath * filepath
   | Custom_runtime
   | File_exists of filepath
   | Cannot_open_dll of filepath
-  | Required_module_unavailable of compunit * Compilation_unit.t
+  | Required_compunit_unavailable of CU.t * CU.t
   | Camlheader of string * filepath
   | Wrong_link_order of DepSet.t
-  | Multiple_definition of compunit * filepath * filepath
+  | Multiple_definition of CU.t * filepath * filepath
 
 exception Error of error
 
@@ -99,38 +99,34 @@ let add_ccobjs origin l =
 
 (* First pass: determine which units are needed *)
 
-let missing_compunits = ref Compunit.Map.empty
-let provided_compunits = ref Compunit.Set.empty
+let missing_compunits = ref CU.Map.empty
+let provided_compunits = ref CU.Set.empty
 let badly_ordered_dependencies : DepSet.t ref = ref DepSet.empty
 
-let record_badly_ordered_dependency (id, compunit) =
-  let dep = ((Ident.name id), CU.name_as_string compunit.cu_name) in
-  badly_ordered_dependencies := DepSet.add dep !badly_ordered_dependencies
+let record_badly_ordered_dependency cu1 cu2 =
+  badly_ordered_dependencies
+    := DepSet.add (cu1, cu2) !badly_ordered_dependencies
 
 let is_required (rel, _pos) =
   match rel with
     | Reloc_setcompunit cu ->
-      Compunit.Map.mem cu !missing_compunits
+      CU.Map.mem cu !missing_compunits
     | _ -> false
 
 let add_required compunit =
   let add cu =
-    if Compunit.Set.mem cu !provided_compunits then
-      record_badly_ordered_dependency (cu, compunit.cu_name);
-    missing_compunits :=
-      Compunit.Map.add cu compunit.cu_name !missing_compunits
-  in
-  let add_unit unit =
-    add (unit |> Compilation_unit.to_global_ident_for_bytecode)
+    if CU.Set.mem cu !provided_compunits then
+      record_badly_ordered_dependency cu compunit.cu_name;
+    missing_compunits := CU.Map.add cu compunit.cu_name !missing_compunits
   in
   List.iter add (Symtable.required_compunits compunit.cu_reloc);
-  List.iter add_unit compunit.cu_required_compunits
+  List.iter add compunit.cu_required_compunits
 
 let remove_required (rel, _pos) =
   match rel with
     Reloc_setcompunit cu ->
-      missing_compunits := Compunit.Map.remove cu !missing_compunits;
-      provided_compunits := Compunit.Set.add cu !provided_compunits;
+      missing_compunits := CU.Map.remove cu !missing_compunits;
+      provided_compunits := CU.Set.add cu !provided_compunits;
   | _ -> ()
 
 let scan_file obj_name tolink =
@@ -195,7 +191,7 @@ let implementations_defined = ref ([] : (CU.Name.t * string) list)
 let check_consistency file_name cu =
   begin try
     let source = List.assoc (CU.name cu.cu_name) !implementations_defined in
-    raise (Error (Multiple_definition(cu.cu_name |> CU.full_path_as_string, file_name, source)));
+    raise (Error (Multiple_definition(cu.cu_name, file_name, source)));
   with Not_found -> ()
   end;
   begin try
@@ -283,7 +279,9 @@ let link_archive output_fun currpos_fun file_name units_required =
   try
     List.iter
       (fun cu ->
-         let name = file_name ^ "(" ^ (CU.full_path_as_string n) ^ ")" in
+         let name =
+           file_name ^ "(" ^ (CU.full_path_as_string cu.cu_name) ^ ")"
+         in
          try
            link_compunit output_fun currpos_fun inchan name cu
          with Symtable.Error msg ->
@@ -800,12 +798,12 @@ let link objfiles output_name =
   in
   let tolink = List.fold_right scan_file objfiles [] in
   begin
-    match Compunit.Map.bindings !missing_compunits with
+    match CU.Map.bindings !missing_compunits with
     | [] -> ()
-    | missing_dependency :: _ ->
+    | (cu1, cu2) :: _ ->
         if DepSet.is_empty !badly_ordered_dependencies
         then
-            raise (Error (Required_compunit_unavailable missing_dependency))
+            raise (Error (Required_compunit_unavailable (cu1, cu2)))
         else
             raise (Error (Wrong_link_order !badly_ordered_dependencies))
   end;
@@ -944,12 +942,10 @@ let report_error ppf = function
   | Cannot_open_dll file ->
       fprintf ppf "Error on dynamically loaded library: %a"
         Location.print_filename file
-  | Required_compunit_unavailable
-    (Compunit unavailable, Compunit required_by) ->
+  | Required_compunit_unavailable (unavailable, required_by) ->
       fprintf ppf "Module %a is unavailable (required by %a)"
-        Style.inline_code unavailable
-        Style.inline_code
-        (Format.asprintf "%a" Compilation_unit.print required_by)
+        (Style.as_inline_code CU.print) unavailable
+        (Style.as_inline_code CU.print) required_by
   | Camlheader (msg, header) ->
       fprintf ppf "System error while copying file %a: %a"
         Style.inline_code header
@@ -958,8 +954,8 @@ let report_error ppf = function
       let l = DepSet.elements depset in
       let depends_on ppf (dep, depending) =
         fprintf ppf "%a depends on %a"
-        Style.inline_code (Compunit.name depending)
-        Style.inline_code (Compunit.name dep)
+          (Style.as_inline_code CU.print) depending
+          (Style.as_inline_code CU.print) dep
       in
       fprintf ppf "@[<hov 2>Wrong link order: %a@]"
         (pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ") depends_on) l
@@ -968,7 +964,7 @@ let report_error ppf = function
         "@[<hov>Files %a@ and %a@ both define a module named %a@]"
         (Style.as_inline_code Location.print_filename) file1
         (Style.as_inline_code Location.print_filename) file2
-        Style.inline_code (Compunit.name compunit)
+        (Style.as_inline_code CU.print) compunit
 
 
 let () =
@@ -982,7 +978,7 @@ let reset () =
   lib_ccobjs := [];
   lib_ccopts := [];
   lib_dllibs := [];
-  missing_compunits := Compunit.Map.empty;
+  missing_compunits := CU.Map.empty;
   Consistbl.clear crc_interfaces;
   implementations_defined := [];
   debug_info := [];
