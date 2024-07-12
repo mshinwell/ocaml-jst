@@ -331,4 +331,4 @@ echo "Dune targets:"
 for target in $dune_targets; do echo $target; done
 
 export RUNTIME_DIR=runtime
-dune b --workspace=duneconf/boot.ws $dune_targets
+dune b --workspace=duneconf/boot.ws -w $dune_targets

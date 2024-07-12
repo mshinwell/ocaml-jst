@@ -291,7 +291,7 @@ let add_pseudo_event loc modname c =
     let ev_defname = string_of_scoped_location loc in
     let ev =
       { ev_pos = 0;                   (* patched in emitcode *)
-        ev_module = modname;
+        ev_module = Compilation_unit.full_path_as_string modname;
         ev_loc = to_location loc;
         ev_defname;
         ev_kind = Event_pseudo;
@@ -363,7 +363,7 @@ let functions_to_compile  = (Stack.create () : function_to_compile Stack.t)
 
 (* Name of current compilation unit (for debugging events) *)
 
-let compunit_name = ref ""
+let compunit_name = ref Compilation_unit.dummy
 
 let check_stack stack_info sz =
   let curr = stack_info.max_stack_used in
@@ -1078,7 +1078,7 @@ let rec comp_expr stack_info env exp sz cont =
       let ev_defname = string_of_scoped_location lev.lev_loc in
       let event kind info =
         { ev_pos = 0;                   (* patched in emitcode *)
-          ev_module = !compunit_name;
+          ev_module = Compilation_unit.full_path_as_string !compunit_name;
           ev_loc = to_location lev.lev_loc;
           ev_kind = kind;
           ev_defname;
@@ -1245,7 +1245,7 @@ let comp_remainder cont =
 
 let reset () =
   label_counter := 0;
-  compunit_name := "";
+  compunit_name := Compilation_unit.dummy;
   Stack.clear functions_to_compile
 
 let compile_gen ?modulename ~init_stack expr =
