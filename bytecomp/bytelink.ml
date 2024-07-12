@@ -19,14 +19,10 @@ open Misc
 open Config
 open Cmo_format
 
-<<<<<<< HEAD
-module CU = Compilation_unit
-
-||||||| 121bedcfd2
-=======
 module Compunit = Symtable.Compunit
 
->>>>>>> 5.2.0
+module CU = Compilation_unit
+
 module Dep = struct
   type t = compunit * compunit
   let compare = compare
@@ -43,22 +39,10 @@ type error =
   | Custom_runtime
   | File_exists of filepath
   | Cannot_open_dll of filepath
-<<<<<<< HEAD
-  | Required_module_unavailable of string * Compilation_unit.t
-||||||| 121bedcfd2
-  | Required_module_unavailable of modname * modname
-=======
-  | Required_compunit_unavailable of (compunit * compunit)
->>>>>>> 5.2.0
+  | Required_module_unavailable of compunit * Compilation_unit.t
   | Camlheader of string * filepath
   | Wrong_link_order of DepSet.t
-<<<<<<< HEAD
-  | Multiple_definition of string * filepath * filepath
-||||||| 121bedcfd2
-  | Multiple_definition of modname * filepath * filepath
-=======
   | Multiple_definition of compunit * filepath * filepath
->>>>>>> 5.2.0
 
 exception Error of error
 
@@ -119,15 +103,8 @@ let missing_compunits = ref Compunit.Map.empty
 let provided_compunits = ref Compunit.Set.empty
 let badly_ordered_dependencies : DepSet.t ref = ref DepSet.empty
 
-<<<<<<< HEAD
 let record_badly_ordered_dependency (id, compunit) =
   let dep = ((Ident.name id), CU.name_as_string compunit.cu_name) in
-||||||| 121bedcfd2
-let record_badly_ordered_dependency (id, compunit) =
-  let dep = ((Ident.name id), compunit.cu_name) in
-=======
-let record_badly_ordered_dependency dep =
->>>>>>> 5.2.0
   badly_ordered_dependencies := DepSet.add dep !badly_ordered_dependencies
 
 let is_required (rel, _pos) =
@@ -137,38 +114,17 @@ let is_required (rel, _pos) =
     | _ -> false
 
 let add_required compunit =
-<<<<<<< HEAD
-  let add id =
-    if Ident.Set.mem id !provided_globals then begin
-      record_badly_ordered_dependency (id, compunit)
-    end;
-    missing_globals := Ident.Map.add id compunit.cu_name !missing_globals
-||||||| 121bedcfd2
-  let add id =
-    if Ident.Set.mem id !provided_globals then
-      record_badly_ordered_dependency (id, compunit);
-    missing_globals := Ident.Map.add id compunit.cu_name !missing_globals
-=======
   let add cu =
     if Compunit.Set.mem cu !provided_compunits then
       record_badly_ordered_dependency (cu, compunit.cu_name);
     missing_compunits :=
       Compunit.Map.add cu compunit.cu_name !missing_compunits
->>>>>>> 5.2.0
   in
-<<<<<<< HEAD
   let add_unit unit =
     add (unit |> Compilation_unit.to_global_ident_for_bytecode)
   in
-  List.iter add (Symtable.required_globals compunit.cu_reloc);
-  List.iter add_unit compunit.cu_required_globals
-||||||| 121bedcfd2
-  List.iter add (Symtable.required_globals compunit.cu_reloc);
-  List.iter add compunit.cu_required_globals
-=======
   List.iter add (Symtable.required_compunits compunit.cu_reloc);
-  List.iter add compunit.cu_required_compunits
->>>>>>> 5.2.0
+  List.iter add_unit compunit.cu_required_compunits
 
 let remove_required (rel, _pos) =
   match rel with
@@ -233,16 +189,8 @@ let scan_file obj_name tolink =
 module Consistbl = Consistbl.Make (CU.Name) (Import_info.Intf.Nonalias.Kind)
 
 let crc_interfaces = Consistbl.create ()
-<<<<<<< HEAD
 let interfaces = ref ([] : CU.Name.t list)
 let implementations_defined = ref ([] : (CU.Name.t * string) list)
-||||||| 121bedcfd2
-let interfaces = ref ([] : string list)
-let implementations_defined = ref ([] : (string * string) list)
-=======
-let interfaces = ref ([] : string list)
-let implementations_defined = ref ([] : (compunit * string) list)
->>>>>>> 5.2.0
 
 let check_consistency file_name cu =
   begin try
@@ -335,14 +283,7 @@ let link_archive output_fun currpos_fun file_name units_required =
   try
     List.iter
       (fun cu ->
-<<<<<<< HEAD
-         let name = file_name ^ "(" ^ (CU.full_path_as_string cu.cu_name) ^ ")" in
-||||||| 121bedcfd2
-         let name = file_name ^ "(" ^ cu.cu_name ^ ")" in
-=======
-         let n = Compunit.name cu.cu_name in
-         let name = file_name ^ "(" ^ n ^ ")" in
->>>>>>> 5.2.0
+         let name = file_name ^ "(" ^ (CU.full_path_as_string n) ^ ")" in
          try
            link_compunit output_fun currpos_fun inchan name cu
          with Symtable.Error msg ->
@@ -731,29 +672,11 @@ let link_bytecode_as_c tolink outfile with_main =
          (Marshal.to_string (Symtable.initial_global_table()) []);
        output_string outchan "\n};\n\n";
        (* The sections *)
-<<<<<<< HEAD
-       let sections : (string * Obj.t) list =
-         [ Bytesections.Name.to_string SYMB,
-           Symtable.data_global_map();
-           Bytesections.Name.to_string PRIM,
-           Obj.repr(Symtable.data_primitive_names());
-           Bytesections.Name.to_string CRCS,
-           Obj.repr(extract_crc_interfaces() |> Array.of_list) ]
-||||||| 121bedcfd2
-       let sections : (string * Obj.t) list =
-         [ Bytesections.Name.to_string SYMB,
-           Symtable.data_global_map();
-           Bytesections.Name.to_string PRIM,
-           Obj.repr(Symtable.data_primitive_names());
-           Bytesections.Name.to_string CRCS,
-           Obj.repr(extract_crc_interfaces()) ]
-=======
        let sections : (string * Obj.t) array =
          [| Bytesections.Name.to_string SYMB,
             Symtable.data_global_map();
             Bytesections.Name.to_string CRCS,
-            Obj.repr(extract_crc_interfaces()) |]
->>>>>>> 5.2.0
+            Obj.repr(extract_crc_interfaces() |> Array.of_list) |]
        in
        output_string outchan "static char caml_sections[] = {\n";
        output_data_string outchan
@@ -1008,22 +931,11 @@ let report_error ppf = function
   | Inconsistent_import(intf, file1, file2) ->
       fprintf ppf
         "@[<hov>Files %a@ and %a@ \
-<<<<<<< HEAD
-                 make inconsistent assumptions over interface %a@]"
-        Location.print_filename file1
-        Location.print_filename file2
-        CU.Name.print intf
-||||||| 121bedcfd2
-                 make inconsistent assumptions over interface %s@]"
-        Location.print_filename file1
-        Location.print_filename file2
-        intf
-=======
                  make inconsistent assumptions over interface %a@]"
         (Style.as_inline_code Location.print_filename) file1
         (Style.as_inline_code Location.print_filename) file2
-        Style.inline_code intf
->>>>>>> 5.2.0
+        Style.inline_code
+        (Format.asprintf "%a" CU.Name.print intf)
   | Custom_runtime ->
       fprintf ppf "Error while building custom runtime system"
   | File_exists file ->
@@ -1032,21 +944,12 @@ let report_error ppf = function
   | Cannot_open_dll file ->
       fprintf ppf "Error on dynamically loaded library: %a"
         Location.print_filename file
-<<<<<<< HEAD
-  | Required_module_unavailable (s, m) ->
-      fprintf ppf "Module `%s' is unavailable (required by `%a')"
-        s
-        Compilation_unit.print m
-||||||| 121bedcfd2
-  | Required_module_unavailable (s, m) ->
-      fprintf ppf "Module `%s' is unavailable (required by `%s')" s m
-=======
   | Required_compunit_unavailable
     (Compunit unavailable, Compunit required_by) ->
       fprintf ppf "Module %a is unavailable (required by %a)"
         Style.inline_code unavailable
-        Style.inline_code required_by
->>>>>>> 5.2.0
+        Style.inline_code
+        (Format.asprintf "%a" Compilation_unit.print required_by)
   | Camlheader (msg, header) ->
       fprintf ppf "System error while copying file %a: %a"
         Style.inline_code header
