@@ -57,7 +57,7 @@ let emit_bytecode i (bytecode, required_globals) =
     (fun () ->
        bytecode
        |> Profile.(record ~accumulate:true generate)
-         (Emitcode.to_file oc cmo ~required_globals);
+         (Emitcode.to_file oc i.module_name cmo ~required_globals);
     )
 
 let implementation ~start_from ~source_file ~output_prefix
