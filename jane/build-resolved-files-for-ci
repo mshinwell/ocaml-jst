@@ -76,11 +76,11 @@ dune_targets=$(
 # echo "Dune targets:"
 # echo "$dune_targets"
 # dune b --workspace=duneconf/boot.ws $dune_targets
-#
-# echo "==========="
-# echo "Testing mls"
-# echo "==========="
-#
+
+echo "==========="
+echo "Testing mls"
+echo "==========="
+
 # typing_mls=(
 #   ctype
 #   datarepr
@@ -111,30 +111,31 @@ dune_targets=$(
 #   typetexp
 #   uniqueness_analysis)
 #
-# # ocamlcommon mls
-# mls=$(
-#   { echo driver/{compenv,compmisc,main_args}.ml
+# ocamlcommon mls
+mls=$(
+   {
+#     echo driver/{compenv,compmisc,main_args}.ml
 #     echo file_formats/{cmi,cms,cmt}_format.ml
-#     echo parsing/parser.ml
-#     echo {utils,parsing,lambda}/*.ml
-#     echo bytecomp/{meta,opcodes,bytesections,dll,symtable}.ml
+#     echo parsing/*.ml
+#     echo {utils,lambda}/*.ml
+      echo bytecomp/{meta,opcodes,bytesections,dll,symtable}.ml
 #     for f in "${typing_mls[@]}"; do
 #         echo "typing/${f}.ml"
 #     done
-#   } |
-#     tr ' ' '\n' |
-#     grep -v "utils/config.common.ml" |
-#     grep -v "utils/config.fixed.ml" |
-#     grep -v "utils/config.generated.ml" |
-#     cat;
-# )
-# echo "$mls"
-# dune_targets=$(
-#   for ml in $mls; do
-#     cmx=$(basename ${ml%.ml})
-#     echo _build/default/.ocamlcommon.objs/native/$cmx.cmx
-#   done
-# )
+   } |
+     tr ' ' '\n' |
+     grep -v "utils/config.common.ml" |
+     grep -v "utils/config.fixed.ml" |
+     grep -v "utils/config.generated.ml" |
+     cat;
+ )
+ echo "$mls"
+ dune_targets=$(
+   for ml in $mls; do
+     cmx=$(basename ${ml%.ml})
+     echo _build/default/.ocamlcommon.objs/native/$cmx.cmx
+   done
+ )
 
 # ocamlbytecomp mls
 mls=$(
