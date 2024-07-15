@@ -218,23 +218,6 @@ let frame_pointers = make
      "frame-pointers available"
      "frame-pointers not available")
 
-<<<<<<< HEAD
-let probes = make
-  ~name:"probes"
-  ~description:"Pass if probes are available"
-  (Actions_helpers.pass_or_skip (Ocamltest_config.probes)
-     "Target supports probes"
-     "Target does not support probes")
-
-let naked_pointers = make
-  ~name:"naked_pointers"
-  ~description:"[BACKPORT] Pass if the runtime system supports naked pointers"
-  (Actions_helpers.pass_or_skip (Ocamltest_config.naked_pointers)
-     "Runtime system supports naked pointers"
-     "Runtime system does not support naked pointers")
-
-||||||| 121bedcfd2
-=======
 let tsan = make
   ~name:"tsan"
   ~description:"Pass if thread sanitizer is supported"
@@ -249,7 +232,20 @@ let no_tsan = make
      "tsan not available"
      "tsan available")
 
->>>>>>> 5.2.0
+let probes = make
+  ~name:"probes"
+  ~description:"Pass if probes are available"
+  (Actions_helpers.pass_or_skip (Ocamltest_config.probes)
+     "Target supports probes"
+     "Target does not support probes")
+
+let naked_pointers = make
+  ~name:"naked_pointers"
+  ~description:"[BACKPORT] Pass if the runtime system supports naked pointers"
+  (Actions_helpers.pass_or_skip (Ocamltest_config.naked_pointers)
+     "Runtime system supports naked pointers"
+     "Runtime system does not support naked pointers")
+
 let has_symlink = make
   ~name:"has_symlink"
   ~description:"Pass if symbolic links are available"
@@ -387,12 +383,8 @@ let _ =
     naked_pointers;
     file_exists;
     copy;
-<<<<<<< HEAD
-    probes;
-    naked_pointers
-||||||| 121bedcfd2
-=======
     tsan;
     no_tsan;
->>>>>>> 5.2.0
+    probes;
+    naked_pointers
   ]
