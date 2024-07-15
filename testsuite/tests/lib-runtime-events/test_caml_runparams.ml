@@ -1,5 +1,4 @@
 (* TEST
-<<<<<<< HEAD
  {
    runtime4;
    skip;
@@ -8,13 +7,6 @@
    ocamlrunparam += ",e=4";
    runtime5;
  }
-||||||| 121bedcfd2
-include runtime_events
-ocamlrunparam += ",e=4"
-=======
- include runtime_events;
- ocamlrunparam += ",e=4";
->>>>>>> 5.2.0
 *)
 
 (* We set the ring buffer size smaller and witness that we do indeed
