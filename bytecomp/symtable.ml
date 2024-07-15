@@ -22,15 +22,6 @@ open Cmo_format
 module String = Misc.Stdlib.String
 module Style = Misc.Style
 
-module Compunit = struct
-  type t = compunit
-  let name (Compunit cu_name) = cu_name
-  let is_packed (Compunit name) = String.contains name '.'
-  let to_ident (Compunit cu_name) = Ident.create_persistent cu_name
-  module Set = Set.Make(struct type nonrec t = t let compare = compare end)
-  module Map = Map.Make(struct type nonrec t = t let compare = compare end)
-end
-
 let builtin_values = Predef.builtin_values
 
 module Predef = struct
@@ -41,28 +32,30 @@ end
 
 module Global = struct
   type t =
-    | Glob_compunit of compunit
+    | Glob_compunit of Compilation_unit.t
     | Glob_predef of predef
 
   let name = function
-    | Glob_compunit (Compunit cu) -> cu
+    | Glob_compunit cu ->
+        Compilation_unit.full_path_as_string cu
     | Glob_predef (Predef_exn exn) -> exn
 
   let quote s = "`" ^ s ^ "'"
 
   let description ppf = function
-    | Glob_compunit (Compunit cu) ->
-        Format.fprintf ppf "compilation unit %a" Style.inline_code (quote cu)
+    | Glob_compunit cu ->
+        Format.fprintf ppf "compilation unit %a"
+          (Style.as_inline_code Compilation_unit.print) cu
     | Glob_predef (Predef_exn exn) ->
         Format.fprintf ppf "predefined exception %a"
           Style.inline_code (quote exn)
+
+  let of_compilation_unit cu = Glob_compunit cu
 
   let of_ident id =
     let name = Ident.name id in
     if (Ident.is_predef id)
     then Some (Glob_predef (Predef_exn name))
-    else if (Ident.global id)
-    then Some (Glob_compunit (Compunit name))
     else None
 
   module Set = Set.Make(struct type nonrec t = t let compare = compare end)
