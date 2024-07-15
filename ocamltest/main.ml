@@ -20,35 +20,9 @@ open Tsl_ast
 open Tsl_semantics
 
 type behavior =
-<<<<<<< HEAD
-  | Skip_all_tests
-  | Run of Environments.t
-
-||||||| 121bedcfd2
-  | Skip_all_tests
-  | Run of Environments.t
-
-(*
-let first_token filename =
-  let input_channel = open_in filename in
-  let lexbuf = Lexing.from_channel input_channel in
-  Location.init lexbuf filename;
-  let token =
-    try Tsl_lexer.token lexbuf with e -> close_in input_channel; raise e
-  in close_in input_channel; token
-
-let is_test filename =
-  match first_token filename with
-    | exception _ -> false
-    | Tsl_parser.TSL_BEGIN_C_STYLE | TSL_BEGIN_OCAML_STYLE -> true
-    | _ -> false
-*)
-
-=======
   | Skip_all
   | Run
 
->>>>>>> 5.2.0
 (* this primitive announce should be used for tests
    that were aborted on system error before ocamltest
    could parse them *)
@@ -56,13 +30,6 @@ let announce_test_error test_filename error =
   Printf.printf " ... testing '%s' => unexpected error (%s)\n%!"
     (Filename.basename test_filename) error
 
-<<<<<<< HEAD
-exception Syntax_error of Lexing.position
-
-let tsl_parse_file test_filename =
-||||||| 121bedcfd2
-let tsl_block_of_file test_filename =
-=======
 let print_exn loc e =
   let open Printf in
   let locstring =
@@ -92,7 +59,6 @@ let print_exn loc e =
 exception Syntax_error of Lexing.position
 
 let tsl_parse_file test_filename =
->>>>>>> 5.2.0
   let input_channel = open_in test_filename in
   let lexbuf = Lexing.from_channel input_channel in
   Location.init lexbuf test_filename;
@@ -206,22 +172,10 @@ let extract_rootenv (Ast (stmts, subs)) =
 let test_file test_filename =
   let start = if Options.show_timings then Unix.gettimeofday () else 0.0 in
   let skip_test = List.mem test_filename !tests_to_skip in
-<<<<<<< HEAD
-  let tsl_ast = tsl_parse_file_safe test_filename in
-  let (rootenv_statements, test_trees) = test_trees_of_tsl_ast tsl_ast in
-  let test_trees = match test_trees with
-    | [] ->
-||||||| 121bedcfd2
-  let tsl_block = tsl_block_of_file_safe test_filename in
-  let (rootenv_statements, test_trees) = test_trees_of_tsl_block tsl_block in
-  let test_trees = match test_trees with
-    | [] ->
-=======
   let tsl_ast = tsl_parse_file_safe test_filename in
   let (rootenv_statements, tsl_ast) = extract_rootenv tsl_ast in
   let tsl_ast = match tsl_ast with
     | Ast ([], []) ->
->>>>>>> 5.2.0
       let default_tests = Tests.default_tests() in
       let make_tree test =
         let id = make_identifier test.Tests.test_name in
