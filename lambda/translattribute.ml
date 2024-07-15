@@ -192,9 +192,6 @@ let parse_opaque_attribute attr =
         []
         payload
 
-let find_attribute p l =
-  Builtin_attributes.(find_attribute (Attributes_filter.create p) l)
-
 let get_inline_attribute l =
   let attr = find_attribute is_inline_attribute l in
   parse_inline_attribute attr
@@ -348,19 +345,11 @@ let add_tmc_attribute expr loc attributes =
      begin match attr with
      | None -> expr
      | Some _ ->
-  match expr with
-  | Lfunction funct ->
-     let attr = find_attribute is_tmc_attribute attributes in
-     begin match attr with
-     | None -> expr
-     | Some _ ->
         if funct.attr.tmc_candidate then
             Location.prerr_warning loc
               (Warnings.Duplicated_attribute "tail_mod_cons");
         let attr = { funct.attr with tmc_candidate = true } in
         lfunction_with_attr ~attr funct
-     end
-  | _ -> expr
      end
   | _ -> expr
 

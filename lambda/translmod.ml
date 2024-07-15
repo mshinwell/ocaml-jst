@@ -1870,8 +1870,8 @@ let explanation_submsg (id, unsafe_info) =
           print "Module %a defines an unsafe extension constructor, %a ."
       | Unsafe_non_function -> print "Module %a defines an unsafe value, %a ."
       | Unsafe_non_value_arg ->
-        print "Module %s defines a function whose first argument \
-               is not a value, %s ."
+        print "Module %a defines a function whose first argument \
+               is not a value, %a ."
 
 let report_error loc = function
   | Circular_dependency cycle ->
@@ -1883,13 +1883,13 @@ let report_error loc = function
         print_cycle cycle Misc.print_see_manual manual_ref
   | Conflicting_inline_attributes ->
       Location.errorf "@[Conflicting %a attributes@]"
+        Style.inline_code "inline"
   | Non_value_jkind (ty, sort) ->
       Location.errorf
         "Non-value sort %a detected in [translmod] in type %a:@ \
          Please report this error to the Jane Street compilers team."
         Jkind.Sort.format sort
         Printtyp.type_expr ty
-        Style.inline_code "inline"
 
 let () =
   Location.register_error_of_exn
