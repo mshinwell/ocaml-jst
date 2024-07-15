@@ -117,7 +117,7 @@ mls=$(
 #     echo driver/{compenv,compmisc,main_args}.ml
 #     echo file_formats/{cmi,cms,cmt}_format.ml
 #     echo parsing/*.ml
-#     echo utils/*.ml
+      echo utils/*.ml
       echo lambda/*.ml
       echo bytecomp/{meta,opcodes,bytesections,dll,symtable}.ml
 #     for f in "${typing_mls[@]}"; do
