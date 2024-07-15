@@ -12,8 +12,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* XXX mshinwell: I accepted all changes from our side and none from 5.2.0 *)
-
 open Local_store
 
 module Dir : sig
