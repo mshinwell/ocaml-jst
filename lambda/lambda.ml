@@ -682,7 +682,6 @@ type function_attribute = {
   tmc_candidate: bool;
   may_fuse_arity: bool;
   unbox_return: bool;
-  may_fuse_arity: bool;
 }
 
 type scoped_location = Debuginfo.Scoped_location.t
@@ -1059,7 +1058,6 @@ let shallow_iter ~tail ~non_tail:f = function
       f arg; tail body
   | Lletrec(decl, body) ->
       tail body;
-      List.iter (fun { def } -> f (Lfunction def)) decl
       List.iter (fun { def } -> f (Lfunction def)) decl
   | Lprim (Psequand, [l1; l2], _)
   | Lprim (Psequor, [l1; l2], _) ->
@@ -1938,8 +1936,9 @@ let primitive_result_layout (p : primitive) =
   | Pbigarrayref (_, _, kind, _) ->
       begin match kind with
       | Pbigarray_unknown -> layout_any_value
-      | Pbigarray_float32 ->
-        (* float32 bigarrays return 64-bit floats for backward compatibility. *)
+      | Pbigarray_float16 | Pbigarray_float32 ->
+        (* float32 bigarrays return 64-bit floats for backward compatibility.
+           Likewise for float16. *)
         layout_boxed_float Pfloat64
       | Pbigarray_float64 -> layout_boxed_float Pfloat64
       | Pbigarray_sint8 | Pbigarray_uint8

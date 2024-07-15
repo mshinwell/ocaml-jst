@@ -131,7 +131,6 @@ end = struct
     (* we choose a placeholder whose tagged representation will be
        reconizable. *)
     Lambda.dummy_constant
-    Lambda.dummy_constant
 
   let with_placeholder constr (body : offset destination -> lambda) =
     let k_with_placeholder =
@@ -989,9 +988,6 @@ and traverse_lfunction ctx lfun =
 
 and traverse_let outer_ctx var def =
   let inner_ctx = declare_binding outer_ctx (var, def) in
-  let bindings =
-    traverse_let_binding outer_ctx inner_ctx var def
-  in
   let bindings =
     traverse_let_binding outer_ctx inner_ctx var def
   in

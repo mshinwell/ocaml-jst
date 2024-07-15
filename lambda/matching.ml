@@ -3516,7 +3516,7 @@ let comp_exit ctx m =
   | Some ((i, _), _) -> (Lstaticraise (i, []), Jumps.singleton i ctx)
   | None -> fatal_error "Matching.comp_exit"
 
-let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_matches =
+let rec comp_match_handlers layout comp_fun partial ctx first_match next_matches =
   match next_matches with
   | [] -> comp_fun partial ctx first_match
   | (_, second_match) :: next_next_matches -> (
@@ -3535,16 +3535,16 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
               match comp_fun partial ctx_i pm_i with
               | lambda_i, jumps_i ->
                 c_rec
-                  (Lstaticcatch (body, (i, []), lambda_i, Same_region, value_kind))
+                  (Lstaticcatch (body, (i, []), lambda_i, Same_region, layout))
                   (Jumps.union jumps_i jumps_rem)
                   rem
               | exception Unused ->
-                  (* Whilst the handler is [lambda_unit] it is actually unused and only added
-                     to produce well-formed code. In reality this expression returns a
-                     [value_kind]. *)
+                  (* Whilst the handler is [lambda_unit] it is actually unused
+                     and only added to produce well-formed code. In reality this
+                     expression returns a [layout]. *)
                   c_rec
                   (Lstaticcatch
-                     (body, (i, []), lambda_unit, Same_region, value_kind))
+                     (body, (i, []), lambda_unit, Same_region, layout))
                   jumps_rem rem
             end
           )
@@ -3554,7 +3554,8 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
         c_rec first_lam jumps next_matches
       | exception Unused ->
         separate_debug_output ();
-        comp_match_handlers comp_fun partial ctx second_match next_next_matches
+        comp_match_handlers layout comp_fun partial ctx second_match
+          next_next_matches
     )
 
 (* To find reasonable names for variables *)
@@ -4093,7 +4094,8 @@ let for_let ~scopes ~arg_sort ~return_layout loc param pat body =
       (* This eliminates a useless variable (and stack slot in bytecode)
          for "let _ = ...". See #6865. *)
       Lsequence (param, body)
-  | Tpat_var (id, _, _) | Tpat_alias ({ pat_desc = Tpat_any }, id, _, _) ->
+  | Tpat_var (id, _, _, _)
+  | Tpat_alias ({ pat_desc = Tpat_any }, id, _, _, _) ->
       (* Fast path, and keep track of simple bindings to unboxable numbers.
 
          Note: the (Tpat_alias (Tpat_any, id)) case needs to be
@@ -4336,4 +4338,3 @@ let () =
       | _ ->
         None
     )
-    (do_for_multiple_match ~scopes loc paraml pat_act_list partial)

@@ -763,10 +763,8 @@ let free_methods l =
 
 let transl_class ~scopes ids cl_id pub_meths cl vflag =
   let open Value_rec_types in
-  let open Value_rec_types in
   (* First check if it is not only a rebind *)
   let rebind = transl_class_rebind ~scopes cl vflag in
-  if rebind <> lambda_unit then rebind, Dynamic else
   if rebind <> lambda_unit then rebind, Dynamic else
 
   (* Prepare for heavy environment handling *)
@@ -958,8 +956,6 @@ let transl_class ~scopes ids cl_id pub_meths cl vflag =
          (if linh_envs = [] then lenv else
          Lprim(Pmakeblock(0, Immutable, None, alloc_heap),
                lenv :: linh_envs, Loc_unknown)),
-         lam),
-    rkind
          lam),
     rkind
   and def_ids cla lam =
