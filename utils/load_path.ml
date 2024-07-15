@@ -12,6 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* XXX mshinwell: I accepted all changes from our side and none from 5.2.0 *)
+
 open Local_store
 
 module Dir : sig
@@ -285,6 +287,10 @@ let auto_include_otherlibs =
     let read_lib lib = lazy (Dir.create ~hidden:false (expand ("+" ^ lib))) in
     List.map (fun lib -> (lib, read_lib lib)) ["dynlink"; "str"; "unix"] in
   auto_include_libs otherlibs
+
+let find_file_in_cache fn visible_files hidden_files =
+  try (STbl.find !visible_files fn, Visible) with
+  | Not_found -> (STbl.find !hidden_files fn, Hidden)
 
 let find fn =
   assert (not Config.merlin || Local_store.is_bound ());
