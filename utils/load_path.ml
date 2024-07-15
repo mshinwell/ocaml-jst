@@ -286,10 +286,6 @@ let auto_include_otherlibs =
     List.map (fun lib -> (lib, read_lib lib)) ["dynlink"; "str"; "unix"] in
   auto_include_libs otherlibs
 
-let find_file_in_cache fn visible_files hidden_files =
-  try (STbl.find !visible_files fn, Visible) with
-  | Not_found -> (STbl.find !hidden_files fn, Hidden)
-
 let find fn =
   assert (not Config.merlin || Local_store.is_bound ());
   try
