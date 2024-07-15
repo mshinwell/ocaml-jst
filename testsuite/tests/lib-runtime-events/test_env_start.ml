@@ -1,5 +1,4 @@
 (* TEST
-<<<<<<< HEAD
  {
    runtime4;
    skip;
@@ -8,13 +7,6 @@
    set OCAML_RUNTIME_EVENTS_START = "1";
    runtime5;
  }
-||||||| 121bedcfd2
-include runtime_events
-set OCAML_RUNTIME_EVENTS_START = "1"
-=======
- include runtime_events;
- set OCAML_RUNTIME_EVENTS_START = "1";
->>>>>>> 5.2.0
 *)
 
 (* In this test the runtime_events should already be started by the environment
