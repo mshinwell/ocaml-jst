@@ -42,6 +42,20 @@ dune_targets=$(
   done
 )
 
+mlis=$(
+  { echo middle_end/compilenv.mli
+  } |
+    tr ' ' '\n'
+)
+echo "$mlis"
+dune_targets=$(
+  echo $dune_targets
+  for mli in $mlis; do
+    cmi=$(basename ${mli%.mli})
+    echo _build/default/.ocamloptcomp.objs/byte/$cmi.cmi
+  done
+)
+
 # # ocamloptcomp mlis
 # mlis=$(
 #   { echo middle_end/{,closure,flambda}/*.mli
@@ -166,6 +180,20 @@ dune_targets=$(
     echo _build/default/toplevel/.topstart.eobjs/byte/$cmt.cmt{,i}
   done
   echo _build/default/toplevel/.expunge.eobjs/byte/expunge.cmt{,i}
+)
+
+mls=$(
+  { echo middle_end/compilenv.ml
+  } |
+    tr ' ' '\n'
+)
+echo "$mls"
+dune_targets=$(
+  echo $dune_targets
+  for ml in $mls; do
+    cmx=$(basename ${ml%.ml})
+    echo _build/default/.ocamloptcomp.objs/native/$cmx.cmx
+  done
 )
 
 # # ocamloptcomp mls
