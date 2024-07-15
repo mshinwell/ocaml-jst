@@ -115,7 +115,7 @@ echo "==========="
 mls=$(
    {
 #     echo driver/{compenv,compmisc,main_args}.ml
-#     echo file_formats/{cmi,cms,cmt}_format.ml
+      echo file_formats/{cmi,cms,cmt}_format.ml
 #     echo parsing/*.ml
       echo utils/*.ml
       echo lambda/*.ml
