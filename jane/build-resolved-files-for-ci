@@ -73,9 +73,6 @@ dune_targets=$(
 #     echo _build/default/debugger/.ocamldebug.objs/byte/$cmi.cmi
 #   done
 # )
-# echo "Dune targets:"
-# echo "$dune_targets"
-# dune b --workspace=duneconf/boot.ws $dune_targets
 
 echo "==========="
 echo "Testing mls"
@@ -132,6 +129,7 @@ mls=$(
  )
  echo "$mls"
  dune_targets=$(
+   echo $dune_targets
    for ml in $mls; do
      cmx=$(basename ${ml%.ml})
      echo _build/default/.ocamlcommon.objs/native/$cmx.cmx
