@@ -43,10 +43,8 @@ let lfunction ?(kind=Curried {nlocal=0}) ?(region=true) ?(ret_mode=alloc_heap) r
   | Curried {nlocal=0},
     Lfunction {kind = Curried _ as kind; params = params';
                body = body'; attr; loc; mode = Alloc_heap; ret_mode; region}
-    (* XXX mshinwell: 5.2.0 also has:
-         when attr.may_fuse_arity && ...
-    *)
-    when List.length params + List.length params' <= Lambda.max_arity() ->
+    when attr.may_fuse_arity &&
+         List.length params + List.length params' <= Lambda.max_arity() ->
       lfunction ~kind ~params:(params @ params')
                 ~return:return_layout
                 ~body:body'

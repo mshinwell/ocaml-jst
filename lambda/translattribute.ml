@@ -56,11 +56,6 @@ let is_opaque_attribute =
 let is_unboxable_attribute =
   [ "unboxable", Return ]
 
-let is_unrolled = function
-  | {txt="unrolled"|"ocaml.unrolled"} -> true
-  | {txt="inline"|"ocaml.inline"|"inlined"|"ocaml.inlined"} -> false
-  | _ -> assert false
-
 let find_attribute p attributes =
   let inline_attribute = select_attributes p attributes in
   let attr =
@@ -108,8 +103,8 @@ let parse_inline_attribute attr : inline_attribute =
 let parse_inlined_attribute attr : inlined_attribute =
   match attr with
   | None -> Default_inlined
-  | Some {Parsetree.attr_name = {txt;loc} as id; attr_payload = payload} ->
-    if is_unrolled id then begin
+  | Some {Parsetree.attr_name = {txt;loc}; attr_payload = payload} ->
+    if attr_equals_builtin attr "unrolled" then begin
       (* the 'unrolled' attributes must be used as [@unrolled n]. *)
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
