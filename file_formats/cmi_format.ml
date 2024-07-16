@@ -127,6 +127,7 @@ let input_cmi_lazy ic =
     } = (input_value ic : header) in
   let crcs = (input_value ic : crcs) in
   let flags = (input_value ic : flags) in
+  (* CR ocaml 5 compressed-marshal mshinwell: upstream uses [Compression] *)
   {
       cmi_name = name;
       cmi_kind = kind;
@@ -183,19 +184,12 @@ let output_cmi filename oc cmi =
   let len = Int64.sub val_pos data_pos in
   output_int64 oc len;
   Out_channel.seek oc val_pos;
-  (* BACKPORT BEGIN *)
-  (* CR ocaml 5 compressed-marshal mshinwell:
-     upstream uses [Compression] here:
-     Compression.output_value oc ((cmi.cmi_name, cmi.cmi_sign) : header);
-
-  *)
   output_value oc
     {
       header_name = cmi.cmi_name;
       header_kind = cmi.cmi_kind;
       header_sign = sign;
     };
-  (* BACKPORT END *)
   flush oc;
   let crc = Digest.file filename in
   let my_info =
