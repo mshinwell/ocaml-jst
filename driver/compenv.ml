@@ -714,7 +714,6 @@ let process_deferred_actions env =
     end
   else if !deferred_actions = [] then
     fatal "No input files";
-  (* XXX mshinwell: do we need this? *)
   let compiling_multiple_impls =
     List.length (List.filter (function
         | ProcessImplementation _ -> true

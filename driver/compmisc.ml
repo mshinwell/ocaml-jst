@@ -26,9 +26,6 @@ let auto_include find_in_dir fn =
    then the directories specified with the -I option (in command line order),
    then the standard library directory (unless the -nostdlib option is given),
    then the directories specified with the -H option (in command line order).
-   then the directories specified with the -I option (in command line order),
-   then the standard library directory (unless the -nostdlib option is given),
-   then the directories specified with the -H option (in command line order).
  *)
 
 let init_path ?(auto_include=auto_include) ?(dir="") () =
@@ -45,13 +42,15 @@ let init_path ?(auto_include=auto_include) ?(dir="") () =
        !Compenv.first_include_dirs]
   in
   let visible =
+    List.map (Misc.expand_directory Config.standard_library) visible
+  in
+  let visible =
     (if !Clflags.no_cwd then [] else [dir])
     @ List.rev_append visible (Clflags.std_include_dir ())
   in
   let hidden =
     List.rev_map (Misc.expand_directory Config.standard_library)
       !Clflags.hidden_include_dirs
-    @ List.rev_append visible (Clflags.std_include_dir ())
   in
   Load_path.init ~auto_include ~visible ~hidden;
   Env.reset_cache ~preserve_persistent_env:false
